@@ -1,0 +1,7 @@
+{
+    "name": "Analog Clock",
+    "description": "A live analog clock with hour, minute, and second hands.",
+    "icon": "icon.svg",
+    "color": "#6366f1",
+    "tags": ["utility"]
+}

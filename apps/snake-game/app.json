@@ -1,0 +1,7 @@
+{
+    "name": "Snake",
+    "description": "Classic snake game — eat food, grow longer, don't hit the walls or yourself.",
+    "icon": "icon.svg",
+    "color": "#22c55e",
+    "tags": ["game"]
+}
