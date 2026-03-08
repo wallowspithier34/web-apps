@@ -3,15 +3,14 @@
 
     // ===== CONSTANTS =====
     const SUITS = ["hearts", "spades", "diamonds", "clubs"];
+    // Pre-built suit index for O(1) lookup during solver
+    const SUIT_INDEX = { hearts: 0, spades: 1, diamonds: 2, clubs: 3 };
     const SUIT_SYMBOLS = { hearts: "\u2665", spades: "\u2660", diamonds: "\u2666", clubs: "\u2663" };
     const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
     const RANK_VALUES = { A:1, "2":2, "3":3, "4":4, "5":5, "6":6, "7":7, "8":8, "9":9, "10":10, J:11, Q:12, K:13 };
 
     // Four-color display but standard red/black grouping for game rules
     const SUIT_GROUP = { hearts: "red", diamonds: "red", spades: "black", clubs: "black" };
-
-    // Foundation order matches suit array
-    const FOUNDATION_SUIT = ["hearts", "spades", "diamonds", "clubs"];
 
     // ===== SEEDED PRNG (Mulberry32) =====
     function mulberry32(seed) {
@@ -102,7 +101,7 @@
     // ===== MOVE RULES =====
     function canMoveToFoundation(card, fi) {
         const pile = state.foundations[fi];
-        if (card.suit !== FOUNDATION_SUIT[fi]) return false;
+        if (card.suit !== SUITS[fi]) return false;
         if (pile.length === 0) return card.rank === "A";
         return card.value === pile[pile.length - 1].value + 1;
     }
@@ -162,7 +161,7 @@
         if (state.stock.length === 0) {
             if (state.waste.length === 0) return false;
             // Recycle waste back to stock
-            state.stock = state.waste.reverse();
+            state.stock = state.waste.slice().reverse();
             state.stock.forEach(c => { c.faceUp = false; });
             state.waste = [];
             state.moveHistory.push({ type: "recycle" });
@@ -187,7 +186,7 @@
             card.faceUp = false;
             state.stock.push(card);
         } else if (rec.type === "recycle") {
-            state.waste = state.stock.reverse();
+            state.waste = state.stock.slice().reverse();
             state.waste.forEach(c => { c.faceUp = true; });
             state.stock = [];
         } else {
@@ -264,7 +263,7 @@
         }
 
         function suitIndex(suit) {
-            return SUITS.indexOf(suit);
+            return SUIT_INDEX[suit];
         }
 
         // Generate all legal moves, sorted by priority
@@ -436,8 +435,8 @@
         }
 
         function dfs(s, depth) {
-            // Auto-play safe foundation moves
-            s = autoFoundation(cloneState(s));
+            // Auto-play safe foundation moves (s is already a fresh clone from applyMove)
+            autoFoundation(s);
 
             // Check win
             if (s.fTop[0] + s.fTop[1] + s.fTop[2] + s.fTop[3] === 52) return true;
@@ -545,7 +544,7 @@
     function renderFoundation(fi) {
         const el = document.getElementById("f" + fi);
         el.innerHTML = "";
-        el.dataset.suitSymbol = SUIT_SYMBOLS[FOUNDATION_SUIT[fi]];
+        el.dataset.suitSymbol = SUIT_SYMBOLS[SUITS[fi]];
         const pile = state.foundations[fi];
         if (pile.length > 0) {
             const card = pile[pile.length - 1];
@@ -603,6 +602,7 @@
 
     // ===== INPUT: DRAG & DROP + TAP =====
     let dragState = null;
+    let highlightRafPending = false;
 
     function initInput() {
         const board = document.getElementById("board");
@@ -618,7 +618,8 @@
     }
 
     function getXY(e) {
-        const t = e.touches ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : e);
+        // changedTouches works for all touch events including touchend; fall back to mouse event
+        const t = e.changedTouches ? e.changedTouches[0] : (e.touches ? e.touches[0] : e);
         return { x: t.clientX, y: t.clientY };
     }
 
@@ -716,12 +717,21 @@
             dragState.moved = true;
         }
 
-        highlightDropTarget(x, y);
+        // Throttle drop-target highlighting to once per animation frame
+        dragState.lastX = x;
+        dragState.lastY = y;
+        if (!highlightRafPending) {
+            highlightRafPending = true;
+            requestAnimationFrame(() => {
+                highlightRafPending = false;
+                if (dragState) highlightDropTarget(dragState.lastX, dragState.lastY);
+            });
+        }
     }
 
     function onPointerUp(e) {
         if (!dragState) return;
-        const { x, y } = e.changedTouches ? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY } : { x: e.clientX, y: e.clientY };
+        const { x, y } = getXY(e);
 
         // Clean up ghosts and dim
         dragState.ghostEls.forEach(g => g.remove());
@@ -820,10 +830,8 @@
         }
 
         // Try to move selected card(s) to the tapped pile
-        // Determine destination pile: use the pile the tapped card belongs to
-        const destPile = pileId;
-        if (isValidMove(sel.pileId, sel.cardIndex, destPile)) {
-            executeMove(sel.pileId, sel.cardIndex, destPile);
+        if (isValidMove(sel.pileId, sel.cardIndex, pileId)) {
+            executeMove(sel.pileId, sel.cardIndex, pileId);
             state.selectedCard = null;
             if (checkWin()) { render(); onWin(); return; }
             else if (canAutoComplete()) { render(); autoComplete(); return; }
@@ -897,7 +905,7 @@
         initButtons();
         initInput();
         // Set foundation suit symbols
-        FOUNDATION_SUIT.forEach((suit, i) => {
+        SUITS.forEach((suit, i) => {
             document.getElementById("f" + i).dataset.suitSymbol = SUIT_SYMBOLS[suit];
         });
         newGame();
