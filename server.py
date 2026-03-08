@@ -67,7 +67,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         sys.stderr.write(f"  {args[0]}\n")
 
 
+def write_app_index():
+    """Write apps/index.json by scanning the apps directory.
+    Keeps the static file in sync so GitHub Pages can discover apps too."""
+    slugs = [app["slug"] for app in discover_apps()]
+    index_path = os.path.join(APPS_DIR, "index.json")
+    with open(index_path, "w") as f:
+        json.dump(slugs, f)
+    print(f"  Updated apps/index.json → {slugs}")
+
+
 if __name__ == "__main__":
+    write_app_index()  # auto-update the static app list on every server start
     with http.server.HTTPServer(("", PORT), Handler) as httpd:
         print(f"\n  Web Apps Home running at http://localhost:{PORT}\n")
         try:

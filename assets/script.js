@@ -2,40 +2,32 @@ async function loadApps() {
     const grid = document.getElementById("app-grid");
 
     try {
-        // Try the server API first
-        const res = await fetch("./api/apps");
-        if (!res.ok) throw new Error("API unavailable");
-        const apps = await res.json();
-        renderApps(grid, apps);
+        // Load app list from static index — works locally and on GitHub Pages
+        const res = await fetch("./apps/index.json");
+        if (!res.ok) throw new Error("index not found");
+        const slugs = await res.json();
+
+        // Fetch each app's manifest in parallel
+        const apps = await Promise.all(
+            slugs.map(async (slug) => {
+                try {
+                    const r = await fetch(`./apps/${slug}/app.json`);
+                    if (!r.ok) return null;
+                    const data = await r.json();
+                    data.slug = slug;
+                    data.path = `./apps/${slug}/`;
+                    return data;
+                } catch {
+                    return null;
+                }
+            })
+        );
+
+        renderApps(grid, apps.filter(Boolean));
     } catch {
-        // Fallback: try loading app.json from known app directories
-        try {
-            const apps = await discoverAppsOffline();
-            renderApps(grid, apps);
-        } catch {
-            grid.innerHTML =
-                '<p class="empty-state">Could not load apps. Is the server running?</p>';
-        }
+        grid.innerHTML =
+            '<p class="empty-state">Could not load apps.</p>';
     }
-}
-
-async function discoverAppsOffline() {
-    const slugs = ["analog-clock", "snake-game"];
-    const apps = [];
-
-    for (const slug of slugs) {
-        try {
-            const res = await fetch(`./apps/${slug}/app.json`);
-            if (!res.ok) continue;
-            const data = await res.json();
-            data.slug = slug;
-            data.path = `./apps/${slug}/`;
-            apps.push(data);
-        } catch {
-            continue;
-        }
-    }
-    return apps;
 }
 
 function renderApps(grid, apps) {
@@ -53,9 +45,7 @@ function renderApps(grid, apps) {
         card.className = "app-card";
         card.style.setProperty("--accent", app.color || "#6366f1");
 
-        const iconSrc = app.icon
-            ? `./apps/${app.slug}/${app.icon}`
-            : null;
+        const iconSrc = app.icon ? `./apps/${app.slug}/${app.icon}` : null;
         const fallbackLetter = (app.name || "?").charAt(0);
 
         card.innerHTML = `
