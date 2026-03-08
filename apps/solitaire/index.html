@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Solitaire">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="manifest" href="./manifest.json">
+    <title>Solitaire</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="app">
+        <header id="toolbar">
+            <button id="new-game-btn">New</button>
+            <span id="move-count">0 moves</span>
+            <button id="undo-btn">Undo</button>
+        </header>
+
+        <div id="board">
+            <!-- Top row: stock, waste, spacer, 4 foundations -->
+            <div id="top-row">
+                <div id="stock" class="pile" data-pile="stock"></div>
+                <div id="waste" class="pile" data-pile="waste"></div>
+                <div class="spacer"></div>
+                <div id="f0" class="pile foundation" data-pile="f0"></div>
+                <div id="f1" class="pile foundation" data-pile="f1"></div>
+                <div id="f2" class="pile foundation" data-pile="f2"></div>
+                <div id="f3" class="pile foundation" data-pile="f3"></div>
+            </div>
+
+            <!-- 7 tableau columns -->
+            <div id="tableau">
+                <div id="t0" class="pile tableau-col" data-pile="t0"></div>
+                <div id="t1" class="pile tableau-col" data-pile="t1"></div>
+                <div id="t2" class="pile tableau-col" data-pile="t2"></div>
+                <div id="t3" class="pile tableau-col" data-pile="t3"></div>
+                <div id="t4" class="pile tableau-col" data-pile="t4"></div>
+                <div id="t5" class="pile tableau-col" data-pile="t5"></div>
+                <div id="t6" class="pile tableau-col" data-pile="t6"></div>
+            </div>
+        </div>
+
+        <!-- Win overlay -->
+        <div id="win-overlay" class="hidden">
+            <div id="win-dialog">
+                <h2>You Win!</h2>
+                <p id="win-stats"></p>
+                <button id="play-again-btn">Play Again</button>
+            </div>
+        </div>
+
+        <!-- Loading overlay shown while solver verifies -->
+        <div id="loading-overlay" class="hidden">
+            <p>Shuffling...</p>
+        </div>
+    </div>
+    <script src="./script.js"></script>
+    <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+</body>
+</html>

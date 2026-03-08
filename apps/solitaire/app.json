@@ -1,0 +1,7 @@
+{
+    "name": "Solitaire",
+    "description": "Classic Klondike Solitaire — every deal is solvable.",
+    "icon": "icon.svg",
+    "color": "#16a34a",
+    "tags": ["game"]
+}

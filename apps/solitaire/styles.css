@@ -1,0 +1,327 @@
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #f5f0e0;
+    --surface: #fffef8;
+    --text: #1c1a17;
+    --text-secondary: #7a7265;
+    --border: #d5d0c0;
+    --accent: #16a34a;
+
+    /* Card dimensions — fits 7 columns on 375px+ screens */
+    --card-w: calc((100vw - 16px - 24px) / 7);
+    --card-h: calc(var(--card-w) * 1.4);
+    --card-radius: 5px;
+    --card-gap: 4px;
+    --fan-down: 16px;
+    --fan-up: 22px;
+
+    /* Suit colors */
+    --suit-hearts: #dc2626;
+    --suit-spades: #1c1a17;
+    --suit-diamonds: #dc2626;
+    --suit-clubs: #1c1a17;
+
+    --card-face: #fffef8;
+    --card-back: #16a34a;
+    --card-back-pattern: #15803d;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+#app {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top, 4px) 8px env(safe-area-inset-bottom, 4px);
+    max-height: 100vh;
+    max-height: 100dvh;
+}
+
+/* --- Toolbar --- */
+#toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    flex-shrink: 0;
+}
+
+#toolbar button {
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#toolbar button:active {
+    background: var(--border);
+}
+
+#move-count {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- Board --- */
+#board {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    touch-action: none;
+    overflow: hidden;
+}
+
+/* --- Top row --- */
+#top-row {
+    display: flex;
+    gap: var(--card-gap);
+    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+.pile {
+    width: var(--card-w);
+    min-height: var(--card-h);
+    position: relative;
+    flex-shrink: 0;
+}
+
+.spacer {
+    width: var(--card-w);
+    flex-shrink: 0;
+}
+
+/* Empty pile placeholder */
+.pile::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: var(--card-w);
+    height: var(--card-h);
+    border: 1.5px dashed var(--border);
+    border-radius: var(--card-radius);
+    pointer-events: none;
+}
+
+/* Stock recycle icon when empty */
+#stock.empty::after {
+    content: "\21BB";
+    position: absolute;
+    inset: 0;
+    width: var(--card-w);
+    height: var(--card-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--accent);
+    pointer-events: none;
+}
+
+/* Foundation suit symbols */
+.foundation::after {
+    content: attr(data-suit-symbol);
+    position: absolute;
+    inset: 0;
+    width: var(--card-w);
+    height: var(--card-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: var(--border);
+    pointer-events: none;
+}
+
+/* --- Tableau --- */
+#tableau {
+    display: flex;
+    gap: var(--card-gap);
+    flex: 1;
+    overflow: hidden;
+}
+
+.tableau-col {
+    flex: 1;
+    position: relative;
+}
+
+/* --- Cards --- */
+.card {
+    position: absolute;
+    width: var(--card-w);
+    height: var(--card-h);
+    border-radius: var(--card-radius);
+    background: var(--card-face);
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.10);
+    will-change: transform;
+    touch-action: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.card-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 3px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.card-tl {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 11px;
+}
+
+.card-center {
+    text-align: center;
+    font-size: 18px;
+    align-self: center;
+}
+
+.card-br {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 11px;
+    transform: rotate(180deg);
+}
+
+/* Suit colors */
+.card[data-suit="hearts"]   { color: var(--suit-hearts); }
+.card[data-suit="spades"]   { color: var(--suit-spades); }
+.card[data-suit="diamonds"] { color: var(--suit-diamonds); }
+.card[data-suit="clubs"]    { color: var(--suit-clubs); }
+
+/* Face-down card back */
+.card.face-down .card-inner { display: none; }
+.card.face-down {
+    background: var(--card-back);
+    border-color: var(--card-back-pattern);
+    background-image:
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 3px,
+            var(--card-back-pattern) 3px,
+            var(--card-back-pattern) 4px
+        );
+}
+
+/* Selected card (tap-to-move) */
+.card.selected {
+    box-shadow: 0 0 0 2px var(--accent), 0 2px 8px rgba(22,163,74,0.3);
+    transform: translateY(-4px);
+    z-index: 900 !important;
+}
+
+/* Dragging card */
+.card.dragging {
+    z-index: 1000 !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+    transition: none;
+}
+
+/* Dim source cards during drag */
+.card.drag-source {
+    opacity: 0.3;
+}
+
+/* Drop target highlight */
+.pile.drop-target::before {
+    border-color: var(--accent);
+    border-style: solid;
+    border-width: 2px;
+}
+
+/* --- Overlays --- */
+.hidden { display: none !important; }
+
+#win-overlay, #loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    background: rgba(0,0,0,0.45);
+}
+
+#win-dialog {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 280px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+}
+
+#win-dialog h2 {
+    font-size: 1.5rem;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+}
+
+#win-dialog p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    font-size: 14px;
+}
+
+#play-again-btn {
+    padding: 10px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#play-again-btn:active {
+    opacity: 0.85;
+}
+
+#loading-overlay p {
+    background: var(--surface);
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    font-size: 15px;
+    color: var(--text-secondary);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
