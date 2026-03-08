@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="20" fill="#92400e"/>
+  <!-- Crescent: full circle minus overlapping circle -->
+  <circle cx="44" cy="50" r="30" fill="#fef3c7"/>
+  <circle cx="57" cy="44" r="24" fill="#92400e"/>
+</svg>

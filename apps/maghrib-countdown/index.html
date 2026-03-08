@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Maghrib">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="manifest" href="./manifest.json">
+    <title>Maghrib Countdown</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="app">
+        <p id="day-label">Ramadan 2026</p>
+        <div id="countdown">
+            <span id="hours">00</span>
+            <span class="sep">:</span>
+            <span id="minutes">00</span>
+            <span class="sep">:</span>
+            <span id="seconds">00</span>
+        </div>
+        <p id="maghrib-label"></p>
+        <p id="message"></p>
+    </div>
+    <script src="./script.js"></script>
+    <!-- Register service worker for offline support -->
+    <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+</body>
+</html>

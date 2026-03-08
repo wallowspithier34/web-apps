@@ -1,0 +1,80 @@
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Warm cream palette — fixed light theme, no dark mode */
+:root {
+    --bg: #faf7f0;
+    --surface: #f3ede0;
+    --accent: #b45309;
+    --text: #1c1410;
+    --text-secondary: #78604a;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    -webkit-font-smoothing: antialiased;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2rem;
+    text-align: center;
+}
+
+/* Ramadan day label */
+#day-label {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+/* Large countdown digits */
+#countdown {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: clamp(4rem, 20vw, 7rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1;
+}
+
+.sep {
+    color: var(--accent);
+    opacity: 0.6;
+    /* Nudge colon down slightly so it sits between digits */
+    margin-top: -0.1em;
+}
+
+/* Maghrib time shown below the countdown */
+#maghrib-label {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+}
+
+/* Post-Maghrib / Eid message */
+#message {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-top: 0.5rem;
+}
