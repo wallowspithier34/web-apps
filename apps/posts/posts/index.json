@@ -1,0 +1,20 @@
+[
+    {
+        "slug": "2026-03-08-welcome",
+        "title": "Welcome",
+        "date": "2026-03-08",
+        "description": "First post on the new blog."
+    },
+    {
+        "slug": "2026-03-06-getting-started",
+        "title": "Getting Started",
+        "date": "2026-03-06",
+        "description": "How this blog works and what to expect."
+    },
+    {
+        "slug": "2026-03-04-hello-world",
+        "title": "Hello World",
+        "date": "2026-03-04",
+        "description": "The very first post, testing markdown rendering."
+    }
+]

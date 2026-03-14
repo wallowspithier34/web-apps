@@ -1,0 +1,7 @@
+{
+    "name": "Posts",
+    "description": "Markdown posts, most recent first.",
+    "icon": "icon.svg",
+    "color": "#7c5e3c",
+    "tags": ["reading"]
+}

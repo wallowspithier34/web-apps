@@ -18,9 +18,10 @@ Web Apps Home/
 ├── index.html         # Landing page shell
 ├── assets/
 │   ├── styles.css     # Landing page styles (warm beige, serif typography)
-│   ├── script.js      # Fetches app list, renders button list (with offline fallback)
+│   ├── script.js      # Fetches app list from index.json, renders card list
 │   └── favicon.svg
 ├── apps/
+│   ├── index.json     # Auto-generated app slug list (written by server.py on start)
 │   ├── _template/     # Starter template for new apps
 │   └── {app-slug}/    # Each app in its own directory
 │       ├── app.json   # App listing manifest (name, description, icon, color, tags)
@@ -32,11 +33,10 @@ Web Apps Home/
 
 ### How it works
 
-1. `server.py` extends Python's built-in HTTP server with one dynamic endpoint: `GET /api/apps`
-2. That endpoint scans `apps/` for subdirectories (skipping `_` and `.` prefixed), reads each `app.json`, and returns a JSON array
-3. The landing page JS fetches this array and renders a list of horizontal buttons
-4. Clicking a button navigates to `./apps/{slug}/` which serves that app's `index.html`
-5. If the API is unavailable (offline/no server), the landing page falls back to loading `app.json` files directly
+1. `server.py` scans `apps/` for subdirectories (skipping `_` and `.` prefixed), reads each `app.json`, and writes `apps/index.json` (a list of slugs) on every server start
+2. The landing page JS fetches `apps/index.json`, then loads each app's `app.json` manifest in parallel
+3. Apps are rendered as a list of cards; clicking one navigates to `./apps/{slug}/`
+4. Because the index is a static file, the landing page also works on static hosts like GitHub Pages — no dynamic server needed
 
 No build step. No bundler. No npm. Just files and a server.
 

@@ -12,3 +12,6 @@
 - Each app must be fully self-contained — no links back to the home page; each works as a standalone PWA
 - All apps must support offline use via a service worker
 - Use relative paths (`./styles.css`, `./script.js`) for all assets
+
+## Review
+- After making changes, check if `README.md` needs updating to stay in sync

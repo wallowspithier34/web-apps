@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Posts">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="manifest" href="./manifest.json">
+    <title>Posts</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <!-- List View -->
+    <div id="list-view">
+        <header class="toolbar">
+            <h1 class="toolbar-title">Posts</h1>
+            <button id="btn-refresh" class="toolbar-btn" aria-label="Refresh">&#x21bb;</button>
+        </header>
+        <main id="post-list" class="post-list">
+            <p class="empty-state">Loading&hellip;</p>
+        </main>
+    </div>
+
+    <!-- Reader View -->
+    <div id="reader-view" class="reader-view hidden">
+        <header class="toolbar">
+            <button id="btn-back" class="toolbar-btn" aria-label="Back">&#x2190;</button>
+            <div class="toolbar-actions">
+                <select id="font-select" class="toolbar-select" aria-label="Font">
+                    <option value="">System</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Palatino, 'Palatino Linotype', serif">Palatino</option>
+                    <option value="Charter, serif">Charter</option>
+                    <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+                    <option value="Avenir, 'Avenir Next', sans-serif">Avenir</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="'Times New Roman', Times, serif">Times</option>
+                    <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+                    <option value="Menlo, 'SF Mono', Consolas, monospace">Menlo</option>
+                </select>
+                <button id="btn-font-down" class="toolbar-btn" aria-label="Decrease font size">A&minus;</button>
+                <button id="btn-font-up" class="toolbar-btn" aria-label="Increase font size">A+</button>
+                <button id="btn-dark" class="toolbar-btn" aria-label="Toggle dark mode">&#x263D;</button>
+            </div>
+        </header>
+        <article id="reader-body" class="reader-body"></article>
+    </div>
+
+    <script src="./markdown.js"></script>
+    <script src="./script.js"></script>
+    <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+</body>
+</html>

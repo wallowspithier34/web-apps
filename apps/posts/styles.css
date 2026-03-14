@@ -1,0 +1,295 @@
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #faf7f0;
+    --surface: #f3ede0;
+    --text: #1c1410;
+    --text-secondary: #78604a;
+    --border: #d5cea8;
+    --accent: #7c5e3c;
+    --reader-font-size: 18px;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ---------- Toolbar ---------- */
+
+.toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.toolbar-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.toolbar-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 1rem;
+    padding: 0.4rem 0.65rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    line-height: 1;
+}
+
+.toolbar-btn:active {
+    background: var(--surface);
+}
+
+.toolbar-select {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%2378604a'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.45rem center;
+    padding-right: 1.4rem;
+    max-width: 7rem;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+/* ---------- List View ---------- */
+
+.post-list {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 1rem 1rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.post-card {
+    display: block;
+    text-decoration: none;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+
+.post-card:active {
+    background: var(--border);
+}
+
+.post-card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.post-card-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-top: 0.25rem;
+}
+
+.post-card-date {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.post-card-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 3rem 1rem;
+    font-style: italic;
+}
+
+/* ---------- Reader View ---------- */
+
+.reader-view {
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.reader-body {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 1.5rem 1.25rem 4rem;
+    font-size: var(--reader-font-size);
+    line-height: 1.7;
+}
+
+/* Markdown element styles */
+
+.reader-body h1 {
+    font-size: 1.6em;
+    font-weight: 700;
+    margin: 1.2em 0 0.5em;
+}
+
+.reader-body h2 {
+    font-size: 1.3em;
+    font-weight: 700;
+    margin: 1.1em 0 0.4em;
+}
+
+.reader-body h3 {
+    font-size: 1.1em;
+    font-weight: 700;
+    margin: 1em 0 0.4em;
+}
+
+.reader-body h4, .reader-body h5, .reader-body h6 {
+    font-size: 1em;
+    font-weight: 700;
+    margin: 1em 0 0.3em;
+}
+
+.reader-body p {
+    margin: 0.6em 0;
+}
+
+.reader-body strong {
+    font-weight: 700;
+}
+
+.reader-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.reader-body code {
+    background: var(--surface);
+    padding: 0.15em 0.35em;
+    border-radius: 3px;
+    font-size: 0.88em;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+
+.reader-body pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 0.8em 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+.reader-body pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.reader-body blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 0.4em 0 0.4em 1em;
+    margin: 0.8em 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.reader-body ul, .reader-body ol {
+    padding-left: 1.5em;
+    margin: 0.6em 0;
+}
+
+.reader-body li {
+    margin: 0.25em 0;
+}
+
+.reader-body img {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 0.8em 0;
+}
+
+.reader-body hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.5em 0;
+}
+
+/* ---------- Dark Mode (reader only) ---------- */
+
+.reader-view.dark {
+    --bg: #1a1a1a;
+    --surface: #2a2a2a;
+    --text: #e8e0d4;
+    --text-secondary: #a89880;
+    --border: #3a3a3a;
+    --accent: #c8a87a;
+}
+
+.reader-view.dark .toolbar {
+    background: var(--bg);
+}
+
+.reader-view.dark .toolbar-btn {
+    color: var(--text);
+    border-color: var(--border);
+}
+
+.reader-view.dark .toolbar-btn:active {
+    background: var(--surface);
+}
+
+.reader-view.dark .toolbar-select {
+    color: var(--text);
+    border-color: var(--border);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23a89880'/%3E%3C/svg%3E");
+}
