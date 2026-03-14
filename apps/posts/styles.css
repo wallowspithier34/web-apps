@@ -22,6 +22,7 @@ body {
     color: var(--text);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    transition: background 0.2s ease, color 0.2s ease;
 }
 
 .hidden {
@@ -156,10 +157,7 @@ body {
 /* ---------- Reader View ---------- */
 
 .reader-view {
-    background: var(--bg);
-    color: var(--text);
     min-height: 100vh;
-    transition: background 0.2s ease, color 0.2s ease;
 }
 
 .reader-body {
@@ -264,9 +262,9 @@ body {
     margin: 1.5em 0;
 }
 
-/* ---------- Dark Mode (reader only) ---------- */
+/* ---------- Dark Mode ---------- */
 
-.reader-view.dark {
+body.dark {
     --bg: #1a1a1a;
     --surface: #2a2a2a;
     --text: #e8e0d4;
@@ -275,20 +273,16 @@ body {
     --accent: #c8a87a;
 }
 
-.reader-view.dark .toolbar {
-    background: var(--bg);
-}
-
-.reader-view.dark .toolbar-btn {
+body.dark .toolbar-btn {
     color: var(--text);
     border-color: var(--border);
 }
 
-.reader-view.dark .toolbar-btn:active {
+body.dark .toolbar-btn:active {
     background: var(--surface);
 }
 
-.reader-view.dark .toolbar-select {
+body.dark .toolbar-select {
     color: var(--text);
     border-color: var(--border);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23a89880'/%3E%3C/svg%3E");

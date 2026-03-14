@@ -7,6 +7,7 @@
     const btnRefresh = document.getElementById("btn-refresh");
     const btnBack = document.getElementById("btn-back");
     const btnDark = document.getElementById("btn-dark");
+    const btnDarkList = document.getElementById("btn-dark-list");
     const btnFontUp = document.getElementById("btn-font-up");
     const btnFontDown = document.getElementById("btn-font-down");
     const fontSelect = document.getElementById("font-select");
@@ -99,7 +100,7 @@
     // ---------- Preferences ----------
 
     function applyPreferences() {
-        readerView.classList.toggle("dark", darkMode);
+        document.body.classList.toggle("dark", darkMode);
         readerView.style.setProperty("--reader-font-size", fontSize + "px");
         if (fontFamily) {
             readerBody.style.fontFamily = fontFamily;
@@ -134,9 +135,19 @@
 
     // ---------- Events ----------
 
-    btnRefresh.addEventListener("click", function () { loadPosts(true); });
+    btnRefresh.addEventListener("click", async function () {
+        btnRefresh.disabled = true;
+        btnRefresh.textContent = "…";
+        await loadPosts(true);
+        btnRefresh.textContent = "✓";
+        setTimeout(function () {
+            btnRefresh.textContent = "↻";
+            btnRefresh.disabled = false;
+        }, 800);
+    });
     btnBack.addEventListener("click", function () { history.back(); });
     btnDark.addEventListener("click", toggleDark);
+    btnDarkList.addEventListener("click", toggleDark);
     btnFontUp.addEventListener("click", function () { changeFontSize(FONT_STEP); });
     btnFontDown.addEventListener("click", function () { changeFontSize(-FONT_STEP); });
     fontSelect.addEventListener("change", function () {
@@ -154,6 +165,9 @@
     }
 
     // ---------- Init ----------
+
+    // Apply dark mode immediately on load
+    document.body.classList.toggle("dark", darkMode);
 
     loadPosts();
     var initialSlug = location.hash.slice(1);
