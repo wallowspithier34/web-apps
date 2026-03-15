@@ -100,12 +100,12 @@ function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Inline formatting: code spans first (to protect contents), then images, links, bold, italic
+// Inline formatting: escape HTML first, then code spans, images, links, bold, italic
 function inline(s) {
-    // Code spans — replace first to protect contents
-    s = s.replace(/`([^`]+)`/g, function (_, code) {
-        return "<code>" + esc(code) + "</code>";
-    });
+    // Escape HTML entities in plain text before any formatting
+    s = esc(s);
+    // Code spans — replace first to protect contents (already escaped)
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
     // Images
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
     // Links

@@ -1,26 +1,8 @@
 [
     {
-        "slug": "2026-03-14-building-in-plain-html",
-        "title": "Building in Plain HTML",
+        "slug": "2026-03-14-reading-roundup",
+        "title": "Reading Roundup \u2014 14 March 2026",
         "date": "2026-03-14",
-        "description": "Why vanilla web development still makes sense."
-    },
-    {
-        "slug": "2026-03-08-welcome",
-        "title": "Welcome",
-        "date": "2026-03-08",
-        "description": "First post on the new blog."
-    },
-    {
-        "slug": "2026-03-06-getting-started",
-        "title": "Getting Started",
-        "date": "2026-03-06",
-        "description": "How this blog works and what to expect."
-    },
-    {
-        "slug": "2026-03-04-hello-world",
-        "title": "Hello World",
-        "date": "2026-03-04",
-        "description": "The very first post, testing markdown rendering."
+        "description": "Compliance, betting, gout, and a conspiracy theory in Alaska."
     }
 ]
