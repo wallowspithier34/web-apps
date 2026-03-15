@@ -17,6 +17,7 @@
         <header class="toolbar">
             <h1 class="toolbar-title">Posts</h1>
             <div class="toolbar-actions">
+                <button id="btn-create" class="toolbar-btn" aria-label="New post">&#x2b;</button>
                 <button id="btn-refresh" class="toolbar-btn" aria-label="Refresh">&#x21bb;</button>
                 <button id="btn-dark-list" class="toolbar-btn" aria-label="Toggle dark mode">&#x263D;</button>
             </div>
@@ -49,6 +50,19 @@
             </div>
         </header>
         <article id="reader-body" class="reader-body"></article>
+    </div>
+
+    <!-- Compose View -->
+    <div id="compose-view" class="compose-view hidden">
+        <header class="toolbar">
+            <button id="btn-compose-cancel" class="toolbar-btn" aria-label="Cancel">&#x2190;</button>
+            <div class="toolbar-actions">
+                <button id="btn-compose-save" class="toolbar-btn" aria-label="Save post">Save</button>
+            </div>
+        </header>
+        <div class="compose-body">
+            <textarea id="compose-textarea" class="compose-textarea" placeholder="Paste markdown here…" autocapitalize="sentences" autocorrect="off" spellcheck="false"></textarea>
+        </div>
     </div>
 
     <script src="./markdown.js"></script>

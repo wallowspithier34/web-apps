@@ -262,6 +262,72 @@ body {
     margin: 1.5em 0;
 }
 
+/* ---------- Compose View ---------- */
+
+.compose-view {
+    min-height: 100vh;
+}
+
+.compose-body {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 4rem;
+}
+
+.compose-textarea {
+    width: 100%;
+    min-height: 60vh;
+    padding: 1rem;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    resize: vertical;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.compose-textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+
+/* Local post badge */
+.post-card-badge {
+    font-size: 0.7rem;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 0.05rem 0.35rem;
+    white-space: nowrap;
+}
+
+/* Delete button on local post cards */
+.post-card {
+    position: relative;
+}
+
+.post-card-delete {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.post-card-delete:active {
+    color: var(--text);
+}
+
 /* ---------- Dark Mode ---------- */
 
 body.dark {
