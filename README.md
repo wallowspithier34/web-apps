@@ -217,10 +217,14 @@ never has a move that's right in one opening and wrong in another:
 - **`openings.js`** — `OPENINGS`, an array of ~32 openings (both colors, tiers
   1–4) with ECO codes and annotated move lists (the source mainlines).
 - **`srs.js`** — builds the deduped position graph (`POSITIONS`,
-  `POSITION_BY_KEY`, `OPENING_CARDS`) from `OPENINGS`, and the `Store` class:
+  `POSITION_BY_KEY`, `OPENING_CARDS`, and `OPENING_LINE` — each opening's cards
+  paired with the move *it* plays there) from `OPENINGS`, and the `Store` class:
   per-position SM-2 spaced repetition, tier unlocking (a position's tier reflects
   how common it is — it inherits the most-played opening that reaches it), and
-  `localStorage` persistence. Progress key: `chess-openings-trainer:v2`.
+  `localStorage` persistence. Per-opening progress keys off the specific response
+  played (recorded per card), so studying one line only credits the moves it
+  actually teaches — shared transposition positions aren't credited to a sibling
+  opening you haven't drilled. Progress key: `chess-openings-trainer:v2`.
 - **`app.js`** — UI controller: board rendering and animation, the drill flow
   (brief auto-replay of the moves leading to a position, then ask for one
   response), the tier-grouped home dashboard, free-practice library, and the

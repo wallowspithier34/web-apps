@@ -87,6 +87,7 @@ const lesson = {
     expected: null,      // Set of accepted UCI responses
     mistakes: 0,         // wrong attempts on this card
     plyWrongs: 0,        // wrong attempts since the last hint escalation
+    playedUci: null,     // the correct response the learner ended up playing
     selected: null,      // currently selected square name
     pieceEls: new Map(), // squareName -> piece element
     busy: false,         // animation/auto-replay in progress
@@ -229,6 +230,11 @@ function buildBoardSquares() {
             sq.className = "square " + (light ? "light" : "dark");
             const name = String.fromCharCode(97 + file) + (8 - row);
             sq.dataset.sq = name;
+            // Coordinate labels along the board edges (POV-aware: `name` is already
+            // the true square for the current orientation). File letters on the
+            // bottom row, rank numbers down the left column.
+            if (sr === 7) sq.insertAdjacentHTML("beforeend", `<span class="coord coord-file">${name[0]}</span>`);
+            if (sf === 0) sq.insertAdjacentHTML("beforeend", `<span class="coord coord-rank">${name[1]}</span>`);
             sq.addEventListener("click", () => onSquareTap(name));
             board.appendChild(sq);
         }
@@ -315,6 +321,13 @@ function applyMove(uci, isUser) {
         lesson.pieceEls.set(toName, el);
         el.classList.add("moved");
         setTimeout(() => el && el.classList.remove("moved"), 220);
+        // Promotion: swap the pawn glyph for the promoted piece (keep its colour).
+        if (result.promotion) {
+            const promoted = result.piece === result.piece.toUpperCase()
+                ? result.promotion : result.promotion.toLowerCase();
+            const inner = pieceInner(promoted);
+            if (inner.text != null) el.textContent = inner.text; else el.innerHTML = inner.html;
+        }
     }
     // Castling rook
     if (result.castle) {
@@ -340,6 +353,7 @@ function startCard(key, mode, queue, queueIdx) {
     lesson.expected = new Set(node.responses.keys());
     lesson.mistakes = 0;
     lesson.plyWrongs = 0;
+    lesson.playedUci = null;
     lesson.selected = null;
     lesson.busy = true;
     lesson.awaiting = false;
@@ -357,7 +371,23 @@ function startCard(key, mode, queue, queueIdx) {
     renderPieces();
     show("screen-lesson");
 
-    replayThenAsk(node.path, 0);
+    // Don't start the auto-replay until the freshly rendered pieces have actually
+    // painted. Image-based sets (cburnett/merida/maestro) decode asynchronously on
+    // iOS Safari, so without this the replay animates over blank squares and the
+    // pieces only "pop in" afterwards — most visible on rapid consecutive puzzles.
+    whenPiecesReady(() => replayThenAsk(node.path, 0));
+}
+
+// Resolve once the current board's pieces are ready to display.
+function whenPiecesReady(cb) {
+    const imgs = $$("#board .piece img");
+    if (imgs.length) {
+        Promise.all(imgs.map((im) => (im.decode ? im.decode().catch(() => {}) : Promise.resolve())))
+            .then(() => requestAnimationFrame(cb));
+    } else {
+        // Markup/CSS pieces: a double rAF guarantees one paint before animating.
+        requestAnimationFrame(() => requestAnimationFrame(cb));
+    }
 }
 
 // Briefly auto-replay the moves that lead to the position, then hand over.
@@ -425,12 +455,25 @@ function deselect() {
     applyLastTint();
 }
 
+// Match a from→to move against the pooled book responses, tolerating promotions.
+// Drills auto-queen, but if the book line records a specific promotion piece
+// (incl. an underpromotion) we accept and play that one.
+function matchExpected(from, to) {
+    const base = from + to;
+    if (lesson.expected.has(base)) return base;
+    for (const u of lesson.expected) {
+        if (u.length > 4 && u.slice(0, 4) === base) return u;
+    }
+    return null;
+}
+
 function attemptUserMove(from, to) {
-    const playedUci = from + to;
+    const playedUci = matchExpected(from, to);
 
     // Any pooled book move from this position is correct.
-    if (lesson.expected.has(playedUci)) {
+    if (playedUci) {
         lesson.plyWrongs = 0;
+        lesson.playedUci = playedUci;
         deselect();
         const resp = lesson.node.responses.get(playedUci);
         applyMove(playedUci, true);
@@ -483,7 +526,7 @@ function finishCard() {
         showComplete({ practice: true });
         return;
     }
-    const res = store.gradeCard(lesson.node.key, lesson.mistakes);
+    const res = store.gradeCard(lesson.node.key, lesson.mistakes, lesson.playedUci);
     showComplete(res);
 }
 

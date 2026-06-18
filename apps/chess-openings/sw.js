@@ -1,4 +1,4 @@
-const CACHE = "chess-openings-v3";
+const CACHE = "chess-openings-v4";
 const ASSETS = [
     "./",
     "./index.html",
@@ -24,7 +24,12 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-    self.clients.claim();
+    // Drop caches from previous versions so old assets don't linger.
+    e.waitUntil(
+        caches.keys().then((keys) =>
+            Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+        ).then(() => self.clients.claim())
+    );
 });
 
 // Network-first: bypass HTTP cache, update SW cache, fall back to SW cache offline

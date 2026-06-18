@@ -8,7 +8,7 @@
 const OPENINGS = [
     // ───────────────────────── Tier 1 — bread and butter ─────────────────────────
     {
-        id: "ruy-lopez", name: "Ruy López", eco: "C65", tier: 1, color: "w",
+        id: "ruy-lopez", name: "Ruy López", eco: "C84", tier: 1, color: "w",
         idea: "Pressure Black's knight on c6 to undermine the e5 pawn, then build a broad centre. The backbone of classical 1.e4 e5 play.",
         moves: [
             { uci: "e2e4", note: "Stake the centre." },
@@ -171,7 +171,7 @@ const OPENINGS = [
         ],
     },
     {
-        id: "english", name: "English Opening", eco: "A20", tier: 2, color: "w",
+        id: "english", name: "English Opening", eco: "A29", tier: 2, color: "w",
         idea: "A flexible flank opening — 1.c4 controls d5 and can transpose widely. Often a reversed Sicilian with an extra tempo.",
         moves: [
             { uci: "c2c4", note: "Control d5 from the flank." },
@@ -262,7 +262,7 @@ const OPENINGS = [
         ],
     },
     {
-        id: "vienna", name: "Vienna Game", eco: "C25", tier: 3, color: "w",
+        id: "vienna", name: "Vienna Game", eco: "C29", tier: 3, color: "w",
         idea: "A delayed King's Gambit idea — develop the knight first, then push f4 with extra support. Aggressive but sound.",
         moves: [
             { uci: "e2e4", note: "Centre." },
@@ -273,7 +273,7 @@ const OPENINGS = [
         ],
     },
     {
-        id: "kings-gambit", name: "King's Gambit", eco: "C30", tier: 3, color: "w",
+        id: "kings-gambit", name: "King's Gambit", eco: "C34", tier: 3, color: "w",
         idea: "A romantic-era gambit — sacrifice the f-pawn for rapid development and a kingside attack. Wild and double-edged.",
         moves: [
             { uci: "e2e4", note: "Centre." },
@@ -366,7 +366,7 @@ const OPENINGS = [
         ],
     },
     {
-        id: "scandi-gambit", name: "Danish Gambit", eco: "C21", tier: 4, color: "w",
+        id: "danish", name: "Danish Gambit", eco: "C21", tier: 4, color: "w",
         idea: "Sacrifice one or two pawns for blazing development and bishops raking toward f7. Pure romantic chess.",
         moves: [
             { uci: "e2e4", note: "Centre." },

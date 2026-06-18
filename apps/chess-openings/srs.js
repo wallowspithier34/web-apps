@@ -46,9 +46,11 @@ function posKey(g) {
 function buildPositionGraph() {
     const byKey = new Map();        // posKey -> node
     const openingCards = new Map(); // opening id -> [posKey, …] in move order
+    const openingLine = new Map();  // opening id -> [{ key, uci }] — this opening's move at each card
 
     for (const o of OPENINGS) {
         openingCards.set(o.id, []);
+        openingLine.set(o.id, []);
         const g = new Chess();
         const path = [];        // uci moves played to reach the current position
         const sanParts = [];    // SAN tokens (with move numbers) for the label
@@ -82,6 +84,7 @@ function buildPositionGraph() {
                 if (!r.note && mv.note) r.note = mv.note;
 
                 openingCards.get(o.id).push(key);
+                openingLine.get(o.id).push({ key, uci: mv.uci });
             }
 
             // Advance the line.
@@ -105,13 +108,14 @@ function buildPositionGraph() {
         node.lineCount = node.openings.size;
     }
 
-    return { byKey, openings: Array.from(byKey.values()), openingCards };
+    return { byKey, openings: Array.from(byKey.values()), openingCards, openingLine };
 }
 
 const _GRAPH = buildPositionGraph();
 const POSITION_BY_KEY = _GRAPH.byKey;
 const POSITIONS = _GRAPH.openings;
 const OPENING_CARDS = _GRAPH.openingCards;
+const OPENING_LINE = _GRAPH.openingLine;
 
 function defaultCardState() {
     return {
@@ -123,6 +127,7 @@ function defaultCardState() {
         correct: 0,         // first-try-correct responses
         started: false,
         lastResult: null,   // last quality 0–5
+        moves: {},          // uci -> true: the specific responses answered correctly here
     };
 }
 
@@ -178,6 +183,10 @@ class Store {
         return !!(s && s.started && daysBetween(s.due, todayStr()) >= 0);
     }
     cardMasteryPct(key) { return Math.round(this.cardStrength(key) * 100); }
+    // Has this specific book response been answered correctly at this position?
+    // Per-opening progress keys off the move actually played, not just the shared
+    // position — so studying one line only credits the moves it actually teaches.
+    responsePlayed(key, uci) { const s = this.data.cards[key]; return !!(s && s.moves && s.moves[uci]); }
 
     // ── Tier mastery & curriculum unlocking ──────────────────────────────────
     tierMastery(tier) {
@@ -195,16 +204,22 @@ class Store {
     }
 
     // ── Per-opening aggregates (for the browse / practice view) ──────────────
-    openingTotal(id) { return (OPENING_CARDS.get(id) || []).length; }
-    openingLearned(id) { return (OPENING_CARDS.get(id) || []).filter((k) => this.cardStarted(k)).length; }
+    // These key off OPENING_LINE — each card paired with the move *this* opening
+    // plays there — so progress reflects the moves you've actually practised for
+    // the line, not shared transposition positions credited by a sibling opening.
+    openingTotal(id) { return (OPENING_LINE.get(id) || []).length; }
+    openingLearned(id) {
+        return (OPENING_LINE.get(id) || []).filter((c) => this.responsePlayed(c.key, c.uci)).length;
+    }
     openingMastery(id) {
-        const ks = OPENING_CARDS.get(id) || [];
-        if (!ks.length) return 0;
-        return Math.round(100 * ks.reduce((a, k) => a + this.cardProgress(k), 0) / ks.length);
+        const cs = OPENING_LINE.get(id) || [];
+        if (!cs.length) return 0;
+        return Math.round(100 * cs.reduce(
+            (a, c) => a + (this.responsePlayed(c.key, c.uci) ? this.cardProgress(c.key) : 0), 0) / cs.length);
     }
     openingMastered(id) {
-        const ks = OPENING_CARDS.get(id) || [];
-        return ks.length > 0 && ks.every((k) => this.cardMastered(k));
+        const cs = OPENING_LINE.get(id) || [];
+        return cs.length > 0 && cs.every((c) => this.responsePlayed(c.key, c.uci) && this.cardMastered(c.key));
     }
     openingAccuracy(id) {
         const ks = OPENING_CARDS.get(id) || [];
@@ -255,7 +270,7 @@ class Store {
     }
 
     // ── Recording a single response ──────────────────────────────────────────
-    gradeCard(key, mistakes) {
+    gradeCard(key, mistakes, uci) {
         const node = POSITION_BY_KEY.get(key);
         let s = this.data.cards[key];
         if (!s) s = this.data.cards[key] = defaultCardState();
@@ -265,6 +280,9 @@ class Store {
         s.attempts += 1;
         if (mistakes === 0) s.correct += 1;
         s.lastResult = quality;
+        // Credit the specific response the learner played (the card only finishes
+        // once they find a correct book move).
+        if (uci) { if (!s.moves) s.moves = {}; s.moves[uci] = true; }
 
         // SM-2 interval / ease update.
         if (quality < 3) {
@@ -325,4 +343,5 @@ window.Store = Store;
 window.POSITIONS = POSITIONS;
 window.POSITION_BY_KEY = POSITION_BY_KEY;
 window.OPENING_CARDS = OPENING_CARDS;
+window.OPENING_LINE = OPENING_LINE;
 window.srsTodayStr = todayStr;
