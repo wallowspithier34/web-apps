@@ -1,0 +1,7 @@
+{
+    "name": "Chess",
+    "description": "Two-player chess on the same device — full rules, pass and play.",
+    "icon": "icon.svg",
+    "color": "#b07d12",
+    "tags": ["game"]
+}

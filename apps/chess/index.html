@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Chess">
+    <meta name="theme-color" content="#f5f0d8">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="manifest" href="./manifest.json">
+    <title>Chess</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Chess</h1>
+            <span id="status">White to move</span>
+        </header>
+
+        <div id="board-wrap">
+            <div id="board"></div>
+        </div>
+
+        <div id="footer">
+            <div id="move-list">—</div>
+            <button id="new-game">New Game</button>
+        </div>
+
+        <!-- Promotion picker -->
+        <div id="promo-modal" hidden>
+            <div id="promo-panel">
+                <p>Promote to</p>
+                <div id="promo-choices"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./chess.js"></script>
+    <script src="./script.js"></script>
+    <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+</body>
+</html>

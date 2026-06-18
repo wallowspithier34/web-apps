@@ -196,9 +196,10 @@ confirm assets load, and confirm `localStorage` survives a refresh.
 | Slug                | Name                    | Notes |
 |---------------------|-------------------------|-------|
 | `analog-clock`      | Analog Clock            | Live analog clock; single `script.js`. |
+| `chess`             | Chess                   | Two-player pass-and-play chess; full rules (castling, en passant, promotion, check/checkmate/stalemate). Unicode pieces, no assets. |
+| `chess-openings`    | Chess Openings Trainer  | The largest app — see below. |
 | `posts`             | Posts                   | Markdown reader (`markdown.js` + `posts/`), reader settings, opt-in dark mode (`posts-dark`). |
 | `solitaire`         | Solitaire               | Klondike; ~33 KB single-file game engine in `script.js`. |
-| `chess-openings`    | Chess Openings Trainer  | The largest app — see below. |
 
 ### `chess-openings` architecture
 
