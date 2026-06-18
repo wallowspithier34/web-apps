@@ -1,0 +1,9 @@
+{
+    "name": "Chess Openings Trainer",
+    "short_name": "Openings",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#f5f0d8",
+    "theme_color": "#f5f0d8",
+    "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

@@ -1,0 +1,13 @@
+Chess piece artwork bundled in this directory
+=============================================
+
+These traditional piece sets are sourced from the lichess.org open-source
+project (lila), https://github.com/lichess-org/lila/tree/master/public/piece
+
+  cburnett/  — by Colin M.L. Burnett. Licensed GPLv2+ (also available under
+               BSD and GFDL). The standard Wikipedia Staunton set.
+  merida/    — by Armando Hernandez Marroquin. Distributed under the GPL.
+  maestro/   — from the lichess piece set collection, distributed under the GPL.
+
+Each set is rendered as-is via <img> tags; no modifications were made to the
+SVG files. Attribution retained per the respective licences.

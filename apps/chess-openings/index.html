@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Openings">
+    <meta name="theme-color" content="#f5f0d8">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <link rel="manifest" href="./manifest.json">
+    <title>Chess Openings Trainer</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- ───────────── Home / dashboard ───────────── -->
+        <section id="screen-home" class="screen active">
+            <header class="home-header">
+                <div class="home-top">
+                    <h1>Openings</h1>
+                    <button class="theme-toggle" id="btn-settings" aria-label="Settings">⚙️</button>
+                </div>
+                <div class="stat-row">
+                    <div class="stat"><span class="stat-val" id="stat-streak">0</span><span class="stat-label">🔥 streak</span></div>
+                    <div class="stat"><span class="stat-val" id="stat-xp">0</span><span class="stat-label">XP</span></div>
+                    <div class="stat"><span class="stat-val" id="stat-lessons">0</span><span class="stat-label">lessons</span></div>
+                </div>
+            </header>
+
+            <div class="entry-points">
+                <button class="entry entry-primary" id="btn-daily">
+                    <span class="entry-title">Daily Lessons</span>
+                    <span class="entry-sub" id="daily-sub">Your adaptive review feed</span>
+                </button>
+                <button class="entry entry-secondary" id="btn-practice">
+                    <span class="entry-title">Free Practice</span>
+                    <span class="entry-sub">Drill any opening, no limits</span>
+                </button>
+            </div>
+
+            <button class="weakest-shortcut" id="btn-weakest" hidden>
+                <span>⚡ Drill your weakest openings</span>
+                <span class="chev">›</span>
+            </button>
+
+            <div id="tier-sections"></div>
+        </section>
+
+        <!-- ───────────── Lesson (board) ───────────── -->
+        <section id="screen-lesson" class="screen">
+            <header class="lesson-bar">
+                <button class="icon-btn" id="lesson-back" aria-label="Back">‹</button>
+                <div class="lesson-titles">
+                    <span class="lesson-name" id="lesson-name">Opening</span>
+                    <span class="lesson-meta" id="lesson-meta"></span>
+                </div>
+                <span class="lesson-progress" id="lesson-progress"></span>
+            </header>
+
+            <div class="board-wrap">
+                <div id="board" class="board"></div>
+            </div>
+
+            <div class="lesson-foot">
+                <div class="turn-indicator" id="turn-indicator">Your move</div>
+                <div class="move-note" id="move-note"></div>
+            </div>
+        </section>
+
+        <!-- ───────────── Free practice library ───────────── -->
+        <section id="screen-practice" class="screen">
+            <header class="lesson-bar">
+                <button class="icon-btn" id="practice-back" aria-label="Back">‹</button>
+                <div class="lesson-titles"><span class="lesson-name">Free Practice</span></div>
+            </header>
+            <div class="filters" id="filters">
+                <div class="filter-group" data-filter="tier">
+                    <button class="chip active" data-val="all">All tiers</button>
+                    <button class="chip" data-val="1">T1</button>
+                    <button class="chip" data-val="2">T2</button>
+                    <button class="chip" data-val="3">T3</button>
+                    <button class="chip" data-val="4">T4</button>
+                </div>
+                <div class="filter-group" data-filter="color">
+                    <button class="chip active" data-val="all">Both</button>
+                    <button class="chip" data-val="w">White</button>
+                    <button class="chip" data-val="b">Black</button>
+                </div>
+                <div class="filter-group" data-filter="mastery">
+                    <button class="chip active" data-val="all">Any</button>
+                    <button class="chip" data-val="locked">Locked</button>
+                    <button class="chip" data-val="progress">In progress</button>
+                    <button class="chip" data-val="mastered">Mastered</button>
+                </div>
+            </div>
+            <div id="practice-list" class="practice-list"></div>
+        </section>
+
+        <!-- ───────────── Settings ───────────── -->
+        <section id="screen-settings" class="screen">
+            <header class="lesson-bar">
+                <button class="icon-btn" id="settings-back" aria-label="Back">‹</button>
+                <div class="lesson-titles"><span class="lesson-name">Settings</span></div>
+            </header>
+            <div class="settings-body">
+                <div class="setting-block">
+                    <h3>Appearance</h3>
+                    <div class="segmented" id="seg-theme">
+                        <button data-val="light">☀️ Light</button>
+                        <button data-val="dark">🌙 Dark</button>
+                    </div>
+                </div>
+                <div class="setting-block">
+                    <h3>Piece style</h3>
+                    <div class="opt-grid" id="opt-pieces"></div>
+                </div>
+                <div class="setting-block">
+                    <h3>Board colour</h3>
+                    <div class="opt-grid" id="opt-board"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ───────────── Completion overlay ───────────── -->
+        <div id="complete-overlay" class="overlay" hidden>
+            <div class="complete-card">
+                <div class="complete-burst" id="complete-burst">♚</div>
+                <h2 id="complete-title">Lesson complete!</h2>
+                <p id="complete-sub"></p>
+                <div class="complete-xp" id="complete-xp">+0 XP</div>
+                <div class="complete-mastery">
+                    <div class="mastery-bar"><div class="mastery-fill" id="complete-fill"></div></div>
+                    <span id="complete-pct">0%</span>
+                </div>
+                <div class="complete-actions">
+                    <button class="btn-secondary" id="complete-home">Home</button>
+                    <button class="btn-primary" id="complete-next">Continue</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast for free-practice notes / messages -->
+        <div id="toast" class="toast" hidden></div>
+    </div>
+
+    <script src="./chess.js"></script>
+    <script src="./openings.js"></script>
+    <script src="./srs.js"></script>
+    <script src="./app.js"></script>
+    <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+</body>
+</html>

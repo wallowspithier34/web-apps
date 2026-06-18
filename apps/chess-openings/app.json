@@ -1,0 +1,7 @@
+{
+    "name": "Chess Openings Trainer",
+    "description": "Learn chess openings Duolingo-style with spaced repetition.",
+    "icon": "icon.svg",
+    "color": "#e0a200",
+    "tags": ["game", "learning"]
+}
