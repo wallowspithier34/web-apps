@@ -1,4 +1,8 @@
-// UI controller: dashboard, interactive board, lesson flow, free practice.
+// UI controller: dashboard, interactive board, position drills, free practice.
+//
+// The unit of study is a *position* (a "situation"), not a whole opening line.
+// Each drill sets up a position by briefly auto-replaying the moves leading to it,
+// then asks for one correct response. Any book move from that position is accepted.
 
 // Unicode figurine glyphs (the "Classic" piece style). Filled glyphs for both
 // colours; CSS colour + outline distinguishes the side.
@@ -74,22 +78,22 @@ let store;
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-// ── Lesson runtime state ────────────────────────────────────────────────────
+// ── Drill runtime state ───────────────────────────────────────────────────
 const lesson = {
-    opening: null,
+    node: null,          // position node being drilled
     game: null,          // Chess instance
-    depth: 0,            // plies to play this lesson
-    ply: 0,              // current ply index (0-based into opening.moves)
     orient: "w",         // board orientation ("w" = white at bottom)
-    learner: "w",        // side the user plays
-    mistakes: 0,
-    userMoves: 0,
-    userCorrect: 0,
+    learner: "w",        // side to move in this position (the side you play)
+    expected: null,      // Set of accepted UCI responses
+    mistakes: 0,         // wrong attempts on this card
+    plyWrongs: 0,        // wrong attempts since the last hint escalation
     selected: null,      // currently selected square name
     pieceEls: new Map(), // squareName -> piece element
-    busy: false,         // animation/auto-move in progress
+    busy: false,         // animation/auto-replay in progress
+    awaiting: false,     // waiting for the user's response
+    lastMove: null,
     mode: "adaptive",    // "adaptive" | "practice"
-    queue: [],           // adaptive session queue (opening ids)
+    queue: [],           // session queue (posKeys)
     queueIdx: 0,
 };
 
@@ -102,67 +106,94 @@ function show(screenId) {
 function renderHome() {
     $("#stat-streak").textContent = store.data.streak.count;
     $("#stat-xp").textContent = store.data.xp;
-    $("#stat-lessons").textContent = store.data.totalLessons;
+    $("#stat-lessons").textContent = store.data.totalReviews;
 
     const session = store.buildSession();
     $("#daily-sub").textContent = session.length
-        ? `${session.length} opening${session.length > 1 ? "s" : ""} queued today`
+        ? `${session.length} position${session.length > 1 ? "s" : ""} due today`
         : "All caught up — great work!";
 
-    const weakest = store.weakestOpenings();
-    $("#btn-weakest").hidden = weakest.length < 2;
+    const weak = store.weakestCards();
+    $("#btn-weakest").hidden = weak.length < 2;
 
     const container = $("#tier-sections");
     container.innerHTML = "";
     for (const tier of [1, 2, 3, 4]) {
-        const openings = OPENINGS.filter((o) => o.tier === tier);
-        const section = document.createElement("div");
-        section.className = `tier-section tier-${tier}`;
+        const positions = POSITIONS.filter((n) => n.tier === tier);
+        if (!positions.length) continue;
         const unlocked = store.isTierUnlocked(tier);
 
-        const head = document.createElement("div");
+        const section = document.createElement("div");
+        section.className = `tier-section tier-${tier}` + (unlocked ? "" : " locked collapsed");
+
+        const head = document.createElement("button");
         head.className = "tier-head";
         head.innerHTML = `
             <span class="tier-dot"></span>
             <span class="tier-name">Tier ${tier} · ${TIER_NAMES[tier]}</span>
-            <span class="tier-status">${unlocked ? Math.round(store.tierAvgMastery(tier)) + "%" : "🔒"}</span>`;
+            <span class="tier-count">${positions.length}</span>
+            <span class="tier-status">${unlocked ? Math.round(store.tierMastery(tier)) + "%" : "🔒"}</span>
+            <span class="tier-chev">▾</span>`;
+        head.addEventListener("click", () => section.classList.toggle("collapsed"));
         section.appendChild(head);
 
-        const grid = document.createElement("div");
-        grid.className = "card-grid";
-        for (const o of openings) grid.appendChild(makeCard(o));
-        section.appendChild(grid);
+        const body = document.createElement("div");
+        body.className = "tier-body";
+
+        // Group positions by their representative (most-common) opening for readability.
+        const groups = new Map();
+        for (const n of positions) {
+            const repId = n.rep ? n.rep.id : "?";
+            if (!groups.has(repId)) groups.set(repId, []);
+            groups.get(repId).push(n);
+        }
+        const groupIds = Array.from(groups.keys())
+            .sort((a, b) => OPENINGS.findIndex((o) => o.id === a) - OPENINGS.findIndex((o) => o.id === b));
+
+        for (const gid of groupIds) {
+            const o = OPENINGS.find((x) => x.id === gid);
+            const grp = document.createElement("div");
+            grp.className = "pos-group";
+            grp.innerHTML = `<div class="pos-group-name">${o ? o.name : "Other"}
+                <span class="pos-group-meta">${o ? (o.color === "w" ? "White" : "Black") + " · " + o.eco : ""}</span></div>`;
+            const grid = document.createElement("div");
+            grid.className = "pos-grid";
+            for (const n of groups.get(gid).sort((a, b) => a.depth - b.depth)) {
+                grid.appendChild(makePosCard(n, unlocked));
+            }
+            grp.appendChild(grid);
+            body.appendChild(grp);
+        }
+        section.appendChild(body);
         container.appendChild(section);
     }
 }
 
-function makeCard(o) {
+function makePosCard(node, unlocked) {
     const card = document.createElement("button");
-    const open = store.isOpeningUnlocked(o.id);
-    const mastery = store.masteryPercent(o.id);
-    const mastered = store.isMastered(o.id);
-    card.className = `op-card tier-${o.tier}` +
-        (open ? "" : " locked") + (mastered ? " mastered" : "") +
-        (store.st(o.id).started && !mastered ? " in-progress" : "");
+    const mastery = store.cardMasteryPct(node.key);
+    const mastered = store.cardMastered(node.key);
+    const started = store.cardStarted(node.key);
+    const due = store.cardDue(node.key);
+    card.className = "pos-card" + (unlocked ? "" : " locked") +
+        (mastered ? " mastered" : "") + (started && !mastered ? " in-progress" : "");
 
-    const depth = store.unlockedDepth(o.id);
-    const total = o.moves.length;
-    const ring = masteryRing(mastery, open);
-
+    const sideTxt = node.sideToMove === "w" ? "W" : "B";
+    const n = node.responses.size;
+    const subRight = n > 1 ? `${n} book moves` : "to play";
     card.innerHTML = `
-        ${ring}
-        <div class="op-info">
-            <span class="op-name">${o.name}</span>
-            <span class="op-eco">${o.eco} · ${o.color === "w" ? "White" : "Black"}</span>
-            <span class="op-depth">${open
-                ? (store.st(o.id).started ? `moves 1–${depth} of ${total}` : "ready to learn")
-                : "locked"}</span>
+        ${masteryRing(mastery, unlocked)}
+        <div class="pos-info">
+            <span class="pos-line">${node.san}</span>
+            <span class="pos-sub">
+                <span class="side-chip side-${node.sideToMove}">${sideTxt}</span>
+                ${subRight}${due && started ? ' · <span class="due-tag">due</span>' : ""}</span>
         </div>
-        <span class="op-badge">${mastered ? "★" : !open ? "🔒" : ""}</span>`;
+        <span class="op-badge">${mastered ? "★" : !unlocked ? "🔒" : ""}</span>`;
 
     card.addEventListener("click", () => {
-        if (open) startLesson(o.id, "adaptive", [o.id], 0);
-        else openPracticeFor(o.id); // locked cards route to (clearly-marked) free practice
+        if (unlocked) startCard(node.key, "adaptive", [node.key], 0);
+        else toast(`Reach Tier ${node.tier} by mastering earlier positions.`);
     });
     return card;
 }
@@ -256,78 +287,6 @@ function applyLastTint() {
     if (tEl) tEl.classList.add("last");
 }
 
-// ════════════════════════════ Lesson flow ════════════════════════════
-function startLesson(id, mode, queue, queueIdx, fixedDepth) {
-    const o = OPENINGS.find((x) => x.id === id);
-    lesson.opening = o;
-    lesson.mode = mode;
-    lesson.queue = queue || [id];
-    lesson.queueIdx = queueIdx || 0;
-    lesson.game = new Chess();
-    lesson.learner = o.color;
-    lesson.orient = o.color;
-    lesson.ply = 0;
-    lesson.mistakes = 0;
-    lesson.userMoves = 0;
-    lesson.userCorrect = 0;
-    lesson.plyWrongs = 0;
-    lesson.selected = null;
-    lesson.busy = false;
-    lesson.lastMove = null;
-
-    // Depth: adaptive uses the unlocked segment; practice uses a chosen/full depth.
-    lesson.depth = fixedDepth || (mode === "adaptive" ? store.unlockedDepth(id) : o.moves.length);
-
-    $("#lesson-name").textContent = o.name;
-    $("#lesson-meta").textContent = `${o.eco} · play as ${o.color === "w" ? "White" : "Black"}` +
-        (mode === "practice" ? " · practice" : "");
-    $("#move-note").textContent = o.idea;
-    updateProgress();
-
-    buildBoardSquares();
-    renderPieces();
-    show("screen-lesson");
-
-    // If the engine (opponent) moves first, play it.
-    maybeOpponentMove();
-    updateTurnIndicator();
-}
-
-function updateProgress() {
-    const dots = [];
-    for (let i = 0; i < lesson.depth; i++) {
-        dots.push(`<span class="pdot ${i < lesson.ply ? "done" : ""}"></span>`);
-    }
-    $("#lesson-progress").innerHTML = dots.join("");
-}
-
-function updateTurnIndicator() {
-    const ind = $("#turn-indicator");
-    if (lesson.ply >= lesson.depth) { ind.textContent = ""; return; }
-    const userTurn = lesson.game.turn === lesson.learner;
-    ind.textContent = userTurn ? "Your move" : "…";
-    ind.classList.toggle("waiting", !userTurn);
-}
-
-// Whose ply is it? Even ply index 0,2,4 = White's move; odd = Black's.
-function isUserPly() {
-    return lesson.game.turn === lesson.learner;
-}
-
-// If it's the opponent's turn at the current ply, play the book move automatically.
-function maybeOpponentMove() {
-    if (lesson.ply >= lesson.depth) { finishLesson(); return; }
-    if (isUserPly()) return;
-    lesson.busy = true;
-    const bookMove = lesson.opening.moves[lesson.ply];
-    setTimeout(() => {
-        applyMove(bookMove.uci, false);
-        if (bookMove.note) $("#move-note").textContent = bookMove.note;
-        lesson.busy = false;
-        afterMove();
-    }, 420);
-}
-
 // Apply a UCI move to the engine and animate the piece.
 function applyMove(uci, isUser) {
     const spec = Chess.parseUci(uci);
@@ -365,13 +324,74 @@ function applyMove(uci, isUser) {
     }
 
     markLast(fromName, toName);
-    lesson.ply += 1;
     return result;
+}
+
+// ════════════════════════════ Drill flow ════════════════════════════
+function startCard(key, mode, queue, queueIdx) {
+    const node = POSITION_BY_KEY.get(key);
+    lesson.node = node;
+    lesson.mode = mode;
+    lesson.queue = queue || [key];
+    lesson.queueIdx = queueIdx || 0;
+    lesson.game = new Chess();
+    lesson.learner = node.sideToMove;
+    lesson.orient = node.sideToMove;
+    lesson.expected = new Set(node.responses.keys());
+    lesson.mistakes = 0;
+    lesson.plyWrongs = 0;
+    lesson.selected = null;
+    lesson.busy = true;
+    lesson.awaiting = false;
+    lesson.lastMove = null;
+
+    const sideTxt = node.sideToMove === "w" ? "White" : "Black";
+    $("#lesson-name").textContent = node.san;
+    $("#lesson-meta").textContent =
+        `${sideTxt} to move · Tier ${node.tier}${node.rep ? " · " + node.rep.name : ""}` +
+        (mode === "practice" ? " · practice" : "");
+    $("#move-note").textContent = node.rep ? node.rep.idea : "";
+    updateProgress();
+
+    buildBoardSquares();
+    renderPieces();
+    show("screen-lesson");
+
+    replayThenAsk(node.path, 0);
+}
+
+// Briefly auto-replay the moves that lead to the position, then hand over.
+function replayThenAsk(path, i) {
+    if (i >= path.length) {
+        lesson.busy = false;
+        lesson.awaiting = true;
+        const ind = $("#turn-indicator");
+        ind.textContent = "Your move";
+        ind.classList.remove("waiting");
+        $("#move-note").textContent =
+            `Find a good move for ${lesson.learner === "w" ? "White" : "Black"}.`;
+        return;
+    }
+    const ind = $("#turn-indicator");
+    ind.textContent = "…";
+    ind.classList.add("waiting");
+    setTimeout(() => {
+        applyMove(path[i], false);
+        replayThenAsk(path, i + 1);
+    }, i === 0 ? 280 : 320);
+}
+
+function updateProgress() {
+    const dots = [];
+    for (let i = 0; i < lesson.queue.length; i++) {
+        dots.push(`<span class="pdot ${i < lesson.queueIdx ? "done" : ""} ${i === lesson.queueIdx ? "current" : ""}"></span>`);
+    }
+    $("#lesson-progress").innerHTML = dots.join("");
 }
 
 // Tap handling: select a piece, show legal moves, then move.
 function onSquareTap(name) {
-    if (lesson.busy || lesson.ply >= lesson.depth || !isUserPly()) return;
+    if (lesson.busy || !lesson.awaiting) return;
     const piece = lesson.game.pieceAt(name);
     const mine = piece && (piece === piece.toUpperCase() ? "w" : "b") === lesson.learner;
 
@@ -406,23 +426,20 @@ function deselect() {
 }
 
 function attemptUserMove(from, to) {
-    const expected = lesson.opening.moves[lesson.ply].uci;
     const playedUci = from + to;
-    lesson.userMoves += 1;
 
-    // Correct book move?
-    const expFrom = expected.slice(0, 2), expTo = expected.slice(2, 4);
-    if (from === expFrom && to === expTo) {
-        lesson.userCorrect += 1;
-        lesson.plyWrongs = 0; // reset wrong-attempt counter for the next ply
+    // Any pooled book move from this position is correct.
+    if (lesson.expected.has(playedUci)) {
+        lesson.plyWrongs = 0;
         deselect();
-        const note = lesson.opening.moves[lesson.ply].note;
-        applyMove(expected, true);
-        $("#move-note").textContent = note || "";
+        const resp = lesson.node.responses.get(playedUci);
+        applyMove(playedUci, true);
+        $("#move-note").textContent = resp && resp.note ? "✓ " + resp.note : "✓ Correct!";
         flashConfirm(to);
-        afterMove();
+        lesson.awaiting = false;
+        lesson.busy = true;
+        setTimeout(finishCard, 700);
     } else {
-        // Wrong move — flash red and let the user try again (no auto-play).
         lesson.mistakes += 1;
         wrongFeedback(from, to);
     }
@@ -448,68 +465,56 @@ function wrongFeedback(from, to) {
         if (toSq) toSq.classList.remove("wrong");
         clearHighlights();
         applyLastTint();
-        // Only from the second wrong attempt at this ply do we nudge — and only
-        // by highlighting the piece that should move, never its destination, and
-        // never naming the move.
+        // From the second wrong attempt we nudge — highlighting which piece(s) can
+        // make a book move (never the destination, never naming the move).
         if (lesson.plyWrongs >= 2) {
-            const expFrom = lesson.opening.moves[lesson.ply].uci.slice(0, 2);
-            const hF = $(`.square[data-sq="${expFrom}"]`);
-            if (hF) hF.classList.add("hint");
-            $("#move-note").textContent = "✗ Not quite — try the highlighted piece.";
+            const froms = new Set(Array.from(lesson.expected).map((u) => u.slice(0, 2)));
+            froms.forEach((sq) => { const el = $(`.square[data-sq="${sq}"]`); if (el) el.classList.add("hint"); });
+            $("#move-note").textContent = "✗ Not quite — try one of the highlighted pieces.";
         } else {
-            $("#move-note").textContent = "✗ Not quite — try again.";
+            $("#move-note").textContent = "✗ Not a book move here — try again.";
         }
         lesson.busy = false; // re-enable input for another attempt
     }, 480);
 }
 
-function afterMove() {
-    updateProgress();
-    updateTurnIndicator();
-    if (lesson.ply >= lesson.depth) { finishLesson(); return; }
-    maybeOpponentMove();
-}
-
-function finishLesson() {
-    const o = lesson.opening;
+function finishCard() {
     if (lesson.mode === "practice") {
-        // Practice never touches SRS/streak.
         showComplete({ practice: true });
         return;
     }
-    const quality = Store.qualityFromMistakes(lesson.mistakes);
-    const res = store.gradeLesson(o.id, quality, lesson.userMoves, lesson.userCorrect);
-    showComplete({ quality, ...res });
+    const res = store.gradeCard(lesson.node.key, lesson.mistakes);
+    showComplete(res);
 }
 
 // ════════════════════════════ Completion overlay ════════════════════════════
 function showComplete(info) {
     const ov = $("#complete-overlay");
-    const o = lesson.opening;
-    const acc = lesson.userMoves ? Math.round((lesson.userCorrect / lesson.userMoves) * 100) : 100;
+    const node = lesson.node;
+    const label = node.san || "Starting position";
 
     if (info.practice) {
-        $("#complete-title").textContent = "Line complete";
-        $("#complete-sub").textContent = `${o.name} · ${acc}% accuracy · practice mode (not scored)`;
+        const m = store.cardMasteryPct(node.key);
+        $("#complete-title").textContent = "Nailed it";
+        $("#complete-sub").textContent = `${label} · practice (not scored)`;
         $("#complete-xp").textContent = "Free practice";
         $("#complete-burst").textContent = "♟";
-        $("#complete-fill").style.width = store.masteryPercent(o.id) + "%";
-        $("#complete-pct").textContent = store.masteryPercent(o.id) + "%";
+        $("#complete-fill").style.width = m + "%";
+        $("#complete-pct").textContent = m + "%";
     } else {
-        const passed = info.quality >= 3;
-        $("#complete-title").textContent = info.mastered ? "Opening mastered! ★"
-            : passed ? "Lesson complete!" : "Keep practising";
+        const flawless = lesson.mistakes === 0;
+        $("#complete-title").textContent = info.cardMastered ? "Position mastered! ★"
+            : flawless ? "Correct!" : "Got there";
         $("#complete-sub").textContent =
-            `${o.name} · ${lesson.mistakes === 0 ? "flawless" : lesson.mistakes + " slip" + (lesson.mistakes > 1 ? "s" : "")} · ${acc}% accuracy`;
-        $("#complete-burst").textContent = info.mastered ? "♚" : passed ? "♞" : "♟";
+            `${label} · ${flawless ? "first try" : lesson.mistakes + " miss" + (lesson.mistakes > 1 ? "es" : "")} · Tier ${info.tier} at ${info.tierMastery}%`;
+        $("#complete-burst").textContent = info.cardMastered ? "♚" : flawless ? "♞" : "♟";
         animateXp(info.xp);
         $("#complete-fill").style.width = info.mastery + "%";
         $("#complete-pct").textContent = info.mastery + "%";
     }
 
-    // "Continue" advances the adaptive queue if more remain.
-    const hasNext = lesson.mode === "adaptive" && lesson.queueIdx < lesson.queue.length - 1;
-    $("#complete-next").textContent = hasNext ? "Next opening" : "Done";
+    const hasNext = lesson.queueIdx < lesson.queue.length - 1;
+    $("#complete-next").textContent = hasNext ? "Next position" : "Done";
 
     ov.hidden = false;
     ov.classList.remove("show");
@@ -539,12 +544,6 @@ function openPractice() {
     renderPracticeList();
 }
 
-function openPracticeFor(id) {
-    // Jump straight into practising one opening (e.g. tapping a locked card).
-    const o = OPENINGS.find((x) => x.id === id);
-    startLesson(id, "practice", [id], 0, o.moves.length);
-}
-
 function renderPracticeList() {
     const list = $("#practice-list");
     list.innerHTML = "";
@@ -552,12 +551,13 @@ function renderPracticeList() {
         if (filterState.tier !== "all" && o.tier !== +filterState.tier) return false;
         if (filterState.color !== "all" && o.color !== filterState.color) return false;
         if (filterState.mastery !== "all") {
-            const locked = !store.isOpeningUnlocked(o.id);
-            const mastered = store.isMastered(o.id);
-            const started = store.st(o.id).started;
+            const learned = store.openingLearned(o.id);
+            const mastered = store.openingMastered(o.id);
+            const started = learned > 0;
+            const locked = !store.isTierUnlocked(o.tier);
             if (filterState.mastery === "locked" && !locked) return false;
             if (filterState.mastery === "mastered" && !mastered) return false;
-            if (filterState.mastery === "progress" && (!started || mastered || locked)) return false;
+            if (filterState.mastery === "progress" && (!started || mastered)) return false;
         }
         return true;
     });
@@ -565,55 +565,37 @@ function renderPracticeList() {
     if (!items.length) { list.innerHTML = `<p class="empty">No openings match these filters.</p>`; return; }
 
     for (const o of items) {
-        const locked = !store.isOpeningUnlocked(o.id);
+        const keys = OPENING_CARDS.get(o.id) || [];
+        const acc = store.openingAccuracy(o.id);
         const row = document.createElement("div");
-        row.className = "practice-row" + (locked ? " locked" : "");
-        const segs = srsSegmentsFor(o);
-        const s = store.st(o.id);
-        const stats = s.started ? statsLine(o.id) : "";
+        row.className = "practice-row";
         row.innerHTML = `
             <div class="pr-main">
-                <span class="pr-name">${o.name} ${locked ? '<span class="lock-tag">locked</span>' : ""}</span>
-                <span class="pr-meta">T${o.tier} · ${o.eco} · ${o.color === "w" ? "White" : "Black"} · ${store.masteryPercent(o.id)}%</span>
+                <span class="pr-name">${o.name}</span>
+                <span class="pr-meta">T${o.tier} · ${o.eco} · ${o.color === "w" ? "White" : "Black"} · ${store.openingMastery(o.id)}%</span>
                 <span class="pr-idea">${o.idea}</span>
-                ${stats}
+                <span class="pr-stats">🎯 ${store.openingLearned(o.id)}/${store.openingTotal(o.id)} positions learned${acc != null ? ` · ${acc}% acc` : ""}</span>
             </div>
             <div class="pr-segs"></div>`;
         const segWrap = row.querySelector(".pr-segs");
-        segs.forEach((depth, i) => {
+        keys.forEach((k, idx) => {
             const b = document.createElement("button");
             b.className = "seg-btn";
-            b.textContent = `1–${depth}`;
-            b.title = `Drill the first ${depth} moves`;
-            b.addEventListener("click", () => startLesson(o.id, "practice", [o.id], 0, depth));
+            b.textContent = "Move " + (idx + 1);
+            b.title = "Drill this position";
+            b.addEventListener("click", () => startCard(k, "practice", [k], 0));
             segWrap.appendChild(b);
         });
-        // Full-line button is the last segment (already total); add a play-all label.
-        const full = document.createElement("button");
-        full.className = "seg-btn full";
-        full.textContent = "▶ Full";
-        full.addEventListener("click", () => startLesson(o.id, "practice", [o.id], 0, o.moves.length));
-        segWrap.appendChild(full);
+        if (keys.length) {
+            const full = document.createElement("button");
+            full.className = "seg-btn full";
+            full.textContent = "▶ All";
+            full.title = "Drill every position in this line";
+            full.addEventListener("click", () => startCard(keys[0], "practice", keys, 0));
+            segWrap.appendChild(full);
+        }
         list.appendChild(row);
     }
-}
-
-// Per-opening stats line for the practice library (times practised, accuracy,
-// next review date, current depth unlocked).
-function statsLine(id) {
-    const o = OPENINGS.find((x) => x.id === id);
-    const s = store.st(id);
-    const acc = store.accuracy(id);
-    const depth = store.unlockedDepth(id);
-    const days = (function () {
-        const t = srsTodayStr();
-        const diff = Math.round((new Date(s.due + "T00:00:00") - new Date(t + "T00:00:00")) / 86400000);
-        if (diff <= 0) return "due now";
-        return diff === 1 ? "in 1 day" : `in ${diff} days`;
-    })();
-    return `<span class="pr-stats">
-        🎯 ${s.practiced}× practised · ${acc != null ? acc + "% acc" : "—"} ·
-        📅 review ${days} · 📖 moves 1–${depth} of ${o.moves.length}</span>`;
 }
 
 function toast(msg) {
@@ -638,7 +620,7 @@ function applyPrefs() {
     if (meta) meta.setAttribute("content", prefs.theme === "dark" ? "#0e0e10" : "#f5f0d8");
     const board = $("#board");
     if (board) { board.dataset.board = prefs.board; board.dataset.pieces = prefs.pieces; }
-    // If a lesson board is currently populated, re-render its pieces in the new style.
+    // If a board is currently populated, re-render its pieces in the new style.
     if (lesson.game && board && board.querySelector(".piece")) renderPieces();
 }
 
@@ -703,12 +685,12 @@ function init() {
     $("#btn-daily").addEventListener("click", () => {
         const queue = store.buildSession();
         if (!queue.length) { toast("Nothing due — try Free Practice!"); return; }
-        startLesson(queue[0], "adaptive", queue, 0);
+        startCard(queue[0], "adaptive", queue, 0);
     });
     $("#btn-practice").addEventListener("click", openPractice);
     $("#btn-weakest").addEventListener("click", () => {
-        const weak = store.weakestOpenings();
-        if (weak.length) startLesson(weak[0], "adaptive", weak, 0);
+        const weak = store.weakestCards();
+        if (weak.length) startCard(weak[0], "adaptive", weak, 0);
     });
 
     $("#lesson-back").addEventListener("click", () => { show("screen-home"); renderHome(); });
@@ -721,9 +703,9 @@ function init() {
     });
     $("#complete-next").addEventListener("click", () => {
         closeComplete();
-        if (lesson.mode === "adaptive" && lesson.queueIdx < lesson.queue.length - 1) {
+        if (lesson.queueIdx < lesson.queue.length - 1) {
             const nextIdx = lesson.queueIdx + 1;
-            startLesson(lesson.queue[nextIdx], "adaptive", lesson.queue, nextIdx);
+            startCard(lesson.queue[nextIdx], lesson.mode, lesson.queue, nextIdx);
         } else {
             show("screen-home");
             renderHome();

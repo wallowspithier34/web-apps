@@ -1,16 +1,23 @@
-// Spaced-repetition (SM-2) scheduling, tiered curriculum unlocking,
-// progressive move disclosure, and localStorage persistence.
+// Position-based spaced repetition.
+//
+// The trainer drills *situations* (positions), not whole opening sequences. All
+// opening mainlines are decomposed into a deduped graph of positions where it is
+// the learner's turn to move. Each such position is a "card". Because positions
+// are shared across openings (transpositions and common early moves), the accepted
+// responses are POOLED: any book move that some opening plays from a position is
+// counted correct, so the same situation never has a move that is "right" in one
+// opening and "wrong" in another.
+//
+// A position's tier reflects how common it is in real play: it inherits the tier of
+// the most-played opening that reaches it (openings are tier-ranked by popularity).
+//
+// Scheduling (SM-2) and mastery are tracked per position, persisted in localStorage.
 
-const STORE_KEY = "chess-openings-trainer:v1";
+const STORE_KEY = "chess-openings-trainer:v2";
 
 // Tunables
-const SEG_FIRST = 4;          // plies tested in the very first segment
-const SEG_STEP = 2;           // plies added per subsequent segment
-const SEG_ADVANCE_AT = 2;     // good reps before the next depth segment unlocks
-const TIER_UNLOCK_MASTERY = 50; // avg % mastery of a tier needed to open the next
-const MASTERY_DEPTH_WEIGHT = 0.6;
-const MASTERY_STRENGTH_WEIGHT = 0.4;
-const STRENGTH_FULL_INTERVAL = 21; // days of interval that counts as "well known"
+const TIER_UNLOCK_MASTERY = 50;     // avg % mastery of a tier needed to open the next
+const STRENGTH_FULL_INTERVAL = 21;  // days of interval that counts as "well known"
 
 // ── Date helpers (all scheduling is day-granular) ───────────────────────────
 function todayStr() {
@@ -26,37 +33,102 @@ function daysBetween(a, b) {
     return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000);
 }
 
-// Depth segments for an opening: [4, 6, 8, … total]. Each ply counts as a "move"
-// in the UI ("moves 1–N of total").
-function segmentsFor(opening) {
-    const total = opening.moves.length;
-    const segs = [];
-    let d = Math.min(SEG_FIRST, total);
-    while (d < total) { segs.push(d); d += SEG_STEP; }
-    segs.push(total);
-    return segs;
+// ── Position graph ──────────────────────────────────────────────────────────
+// A compact key identifying a position uniquely (board + side + castling + ep).
+function posKey(g) {
+    const c = (g.castling.K ? "K" : "") + (g.castling.Q ? "Q" : "") +
+              (g.castling.k ? "k" : "") + (g.castling.q ? "q" : "");
+    return g.board.map((p) => p || ".").join("") + " " + g.turn + " " +
+           (c || "-") + " " + (g.ep == null ? "-" : g.ep);
 }
 
-function defaultOpeningState() {
+// Walk every opening mainline and collect the learner-to-move positions.
+function buildPositionGraph() {
+    const byKey = new Map();        // posKey -> node
+    const openingCards = new Map(); // opening id -> [posKey, …] in move order
+
+    for (const o of OPENINGS) {
+        openingCards.set(o.id, []);
+        const g = new Chess();
+        const path = [];        // uci moves played to reach the current position
+        const sanParts = [];    // SAN tokens (with move numbers) for the label
+
+        for (let i = 0; i < o.moves.length; i++) {
+            const mv = o.moves[i];
+
+            // A position the learner has to respond from → a card.
+            if (g.turn === o.color) {
+                const key = posKey(g);
+                let node = byKey.get(key);
+                if (!node) {
+                    node = {
+                        key,
+                        sideToMove: g.turn,
+                        responses: new Map(),   // uci -> { uci, note, openings:Set }
+                        openings: new Set(),
+                        tier: o.tier,
+                        depth: i,
+                        path: path.slice(),
+                        san: sanParts.join(" ") || "Starting position",
+                    };
+                    byKey.set(key, node);
+                }
+                node.openings.add(o.id);
+                node.tier = Math.min(node.tier, o.tier); // most common host wins
+
+                let r = node.responses.get(mv.uci);
+                if (!r) { r = { uci: mv.uci, note: mv.note, openings: new Set() }; node.responses.set(mv.uci, r); }
+                r.openings.add(o.id);
+                if (!r.note && mv.note) r.note = mv.note;
+
+                openingCards.get(o.id).push(key);
+            }
+
+            // Advance the line.
+            const res = g.move(Chess.parseUci(mv.uci));
+            if (!res) break; // malformed data — stop this line
+            path.push(mv.uci);
+            const moveNo = Math.floor(i / 2) + 1;
+            sanParts.push((i % 2 === 0 ? moveNo + "." : "") + res.san);
+        }
+    }
+
+    // Pick a representative opening (most common, then earliest) for display.
+    for (const node of byKey.values()) {
+        let rep = null;
+        for (const id of node.openings) {
+            const o = OPENINGS.find((x) => x.id === id);
+            if (!rep || o.tier < rep.tier ||
+                (o.tier === rep.tier && OPENINGS.indexOf(o) < OPENINGS.indexOf(rep))) rep = o;
+        }
+        node.rep = rep;
+        node.lineCount = node.openings.size;
+    }
+
+    return { byKey, openings: Array.from(byKey.values()), openingCards };
+}
+
+const _GRAPH = buildPositionGraph();
+const POSITION_BY_KEY = _GRAPH.byKey;
+const POSITIONS = _GRAPH.openings;
+const OPENING_CARDS = _GRAPH.openingCards;
+
+function defaultCardState() {
     return {
         ease: 2.5,
         interval: 0,
-        reps: 0,            // SM-2 successful repetitions
+        reps: 0,
         due: todayStr(),
-        seg: 0,             // index of the deepest segment currently being trained
-        segReps: 0,         // good reps accumulated at the current depth
-        practiced: 0,       // adaptive lessons completed
-        attempts: 0,        // total user moves attempted
-        correct: 0,         // correct user moves
+        attempts: 0,        // total responses given
+        correct: 0,         // first-try-correct responses
         started: false,
-        lastResult: null,   // last lesson quality 0–5
+        lastResult: null,   // last quality 0–5
     };
 }
 
 class Store {
     constructor() {
         this.data = this._load();
-        this._ensureOpenings();
         this._rolloverStreak();
         this.save();
     }
@@ -67,153 +139,134 @@ class Store {
             if (raw) return JSON.parse(raw);
         } catch (e) { /* ignore corrupt store */ }
         return {
-            version: 1,
+            version: 2,
             xp: 0,
-            totalLessons: 0,
+            totalReviews: 0,
             streak: { count: 0, lastDate: null },
-            openings: {},
+            cards: {},
         };
-    }
-
-    _ensureOpenings() {
-        for (const o of OPENINGS) {
-            if (!this.data.openings[o.id]) this.data.openings[o.id] = defaultOpeningState();
-        }
     }
 
     // If the user missed a day, the streak resets (handled lazily on load).
     _rolloverStreak() {
         const s = this.data.streak;
         if (!s.lastDate) return;
-        const gap = daysBetween(s.lastDate, todayStr());
-        if (gap > 1) s.count = 0; // a full day was skipped
+        if (daysBetween(s.lastDate, todayStr()) > 1) s.count = 0;
     }
 
     save() {
         try { localStorage.setItem(STORE_KEY, JSON.stringify(this.data)); } catch (e) { /* quota */ }
     }
 
-    st(id) { return this.data.openings[id]; }
-
-    // ── Mastery & progression ───────────────────────────────────────────────
-    masteryPercent(id) {
-        const o = OPENINGS.find((x) => x.id === id);
-        const s = this.st(id);
-        if (!s.started) return 0;
-        const segs = segmentsFor(o);
-        const unlockedPlies = segs[Math.min(s.seg, segs.length - 1)];
-        const depthFrac = unlockedPlies / o.moves.length;
-        const strengthFrac = Math.min(1, s.interval / STRENGTH_FULL_INTERVAL);
-        const pct = Math.round(
-            (depthFrac * MASTERY_DEPTH_WEIGHT + strengthFrac * MASTERY_STRENGTH_WEIGHT) * 100
-        );
-        return Math.min(100, pct);
+    // ── Per-card queries (never create state on read) ────────────────────────
+    cardStarted(key) { const s = this.data.cards[key]; return !!(s && s.started); }
+    cardStrength(key) {
+        const s = this.data.cards[key];
+        if (!s || !s.started) return 0;
+        return Math.min(1, s.interval / STRENGTH_FULL_INTERVAL);
     }
-
-    isMastered(id) {
-        const o = OPENINGS.find((x) => x.id === id);
-        const s = this.st(id);
-        const segs = segmentsFor(o);
-        // Full line reached AND well-retained.
-        return s.seg >= segs.length - 1 && s.interval >= STRENGTH_FULL_INTERVAL;
+    cardProgress(key) {
+        // Introducing a card is worth a baseline; strength fills the rest.
+        return this.cardStarted(key) ? 0.4 + 0.6 * this.cardStrength(key) : 0;
     }
-
-    accuracy(id) {
-        const s = this.st(id);
-        return s.attempts ? Math.round((s.correct / s.attempts) * 100) : null;
+    cardMastered(key) {
+        const s = this.data.cards[key];
+        return !!(s && s.started && s.interval >= STRENGTH_FULL_INTERVAL);
     }
-
-    // Number of plies currently being tested for an opening.
-    unlockedDepth(id) {
-        const o = OPENINGS.find((x) => x.id === id);
-        const s = this.st(id);
-        const segs = segmentsFor(o);
-        return segs[Math.min(s.seg, segs.length - 1)];
+    cardDue(key) {
+        const s = this.data.cards[key];
+        return !!(s && s.started && daysBetween(s.due, todayStr()) >= 0);
     }
+    cardMasteryPct(key) { return Math.round(this.cardStrength(key) * 100); }
 
-    // ── Tier curriculum unlocking ───────────────────────────────────────────
-    tierAvgMastery(tier) {
-        const ids = OPENINGS.filter((o) => o.tier === tier).map((o) => o.id);
-        if (!ids.length) return 0;
-        return ids.reduce((sum, id) => sum + this.masteryPercent(id), 0) / ids.length;
+    // ── Tier mastery & curriculum unlocking ──────────────────────────────────
+    tierMastery(tier) {
+        const ps = POSITIONS.filter((n) => n.tier === tier);
+        if (!ps.length) return 0;
+        return 100 * ps.reduce((a, n) => a + this.cardProgress(n.key), 0) / ps.length;
     }
-
     isTierUnlocked(tier) {
         if (tier <= 1) return true;
-        if (tier === 4) return this.tierAvgMastery(3) >= TIER_UNLOCK_MASTERY && this.isTierUnlocked(3);
-        return this.tierAvgMastery(tier - 1) >= TIER_UNLOCK_MASTERY && this.isTierUnlocked(tier - 1);
+        return this.tierMastery(tier - 1) >= TIER_UNLOCK_MASTERY && this.isTierUnlocked(tier - 1);
+    }
+    isCardUnlocked(key) {
+        const n = POSITION_BY_KEY.get(key);
+        return n ? this.isTierUnlocked(n.tier) : false;
     }
 
-    // Tier 4 openings trickle in gradually as tiers 1–3 are mastered.
-    isOpeningUnlocked(id) {
-        const o = OPENINGS.find((x) => x.id === id);
-        if (o.tier <= 3) return this.isTierUnlocked(o.tier);
-        if (!this.isTierUnlocked(4)) return false;
-        const tier4 = OPENINGS.filter((x) => x.tier === 4);
-        const combined = (this.tierAvgMastery(1) + this.tierAvgMastery(2) + this.tierAvgMastery(3)) / 3;
-        const unlockedCount = Math.max(1, Math.floor((combined / 100) * tier4.length));
-        const rank = tier4.findIndex((x) => x.id === id);
-        return rank < unlockedCount;
+    // ── Per-opening aggregates (for the browse / practice view) ──────────────
+    openingTotal(id) { return (OPENING_CARDS.get(id) || []).length; }
+    openingLearned(id) { return (OPENING_CARDS.get(id) || []).filter((k) => this.cardStarted(k)).length; }
+    openingMastery(id) {
+        const ks = OPENING_CARDS.get(id) || [];
+        if (!ks.length) return 0;
+        return Math.round(100 * ks.reduce((a, k) => a + this.cardProgress(k), 0) / ks.length);
+    }
+    openingMastered(id) {
+        const ks = OPENING_CARDS.get(id) || [];
+        return ks.length > 0 && ks.every((k) => this.cardMastered(k));
+    }
+    openingAccuracy(id) {
+        const ks = OPENING_CARDS.get(id) || [];
+        let at = 0, co = 0;
+        for (const k of ks) { const s = this.data.cards[k]; if (s) { at += s.attempts; co += s.correct; } }
+        return at ? Math.round(100 * co / at) : null;
     }
 
-    // ── Adaptive session building ───────────────────────────────────────────
-    isDue(id) {
-        const s = this.st(id);
-        return s.started && daysBetween(s.due, todayStr()) >= 0;
-    }
-
-    // Build the daily adaptive queue: overdue reviews first, then new openings in
-    // tier order. Falls back to weakest started openings if nothing is due.
-    buildSession(maxItems = 8, maxNew = 2) {
-        const unlocked = OPENINGS.filter((o) => this.isOpeningUnlocked(o.id));
+    // ── Session building ─────────────────────────────────────────────────────
+    // Daily queue: overdue reviews first (most overdue / weakest), then a few new
+    // positions, introduced common-first. Falls back to the weakest started cards.
+    buildSession(maxItems = 12, maxNew = 4) {
+        const unlocked = POSITIONS.filter((n) => this.isTierUnlocked(n.tier));
 
         const due = unlocked
-            .filter((o) => this.isDue(o.id))
-            .sort((a, b) => daysBetween(todayStr(), this.st(a.id).due) - daysBetween(todayStr(), this.st(b.id).due)
-                || this.masteryPercent(a.id) - this.masteryPercent(b.id))
-            .map((o) => o.id);
+            .filter((n) => this.cardDue(n.key))
+            .sort((a, b) =>
+                daysBetween(todayStr(), this.data.cards[a.key].due) - daysBetween(todayStr(), this.data.cards[b.key].due)
+                || this.cardStrength(a.key) - this.cardStrength(b.key))
+            .map((n) => n.key);
 
         const fresh = unlocked
-            .filter((o) => !this.st(o.id).started)
-            .sort((a, b) => a.tier - b.tier || OPENINGS.indexOf(a) - OPENINGS.indexOf(b))
+            .filter((n) => !this.cardStarted(n.key))
+            .sort((a, b) => a.tier - b.tier || b.lineCount - a.lineCount || a.depth - b.depth)
             .slice(0, maxNew)
-            .map((o) => o.id);
+            .map((n) => n.key);
 
         let queue = [...due, ...fresh];
 
         if (!queue.length) {
-            // Nothing due and nothing new — review the weakest started openings.
             queue = unlocked
-                .filter((o) => this.st(o.id).started)
-                .sort((a, b) => this.masteryPercent(a.id) - this.masteryPercent(b.id))
-                .slice(0, 4)
-                .map((o) => o.id);
+                .filter((n) => this.cardStarted(n.key))
+                .sort((a, b) => this.cardStrength(a.key) - this.cardStrength(b.key))
+                .slice(0, 6)
+                .map((n) => n.key);
         }
         return queue.slice(0, maxItems);
     }
 
-    // Weakest started openings, for the targeted-drill shortcut.
-    weakestOpenings(n = 5) {
-        return OPENINGS
-            .filter((o) => this.st(o.id).started && this.isOpeningUnlocked(o.id))
-            .sort((a, b) => this.masteryPercent(a.id) - this.masteryPercent(b.id)
-                || (this.accuracy(a.id) ?? 100) - (this.accuracy(b.id) ?? 100))
+    // Weakest started positions, for the targeted-drill shortcut.
+    weakestCards(n = 6) {
+        return POSITIONS
+            .filter((p) => this.cardStarted(p.key) && this.isTierUnlocked(p.tier))
+            .sort((a, b) => this.cardStrength(a.key) - this.cardStrength(b.key)
+                || a.depth - b.depth)
             .slice(0, n)
-            .map((o) => o.id);
+            .map((p) => p.key);
     }
 
-    // ── Recording a completed adaptive lesson ───────────────────────────────
-    // quality: SM-2 grade 0–5. moves/correct count the user's attempts this lesson.
-    gradeLesson(id, quality, moveCount, correctCount) {
-        const o = OPENINGS.find((x) => x.id === id);
-        const s = this.st(id);
+    // ── Recording a single response ──────────────────────────────────────────
+    gradeCard(key, mistakes) {
+        const node = POSITION_BY_KEY.get(key);
+        let s = this.data.cards[key];
+        if (!s) s = this.data.cards[key] = defaultCardState();
+
+        const quality = Store.qualityFromMistakes(mistakes);
         s.started = true;
-        s.practiced += 1;
-        s.attempts += moveCount;
-        s.correct += correctCount;
+        s.attempts += 1;
+        if (mistakes === 0) s.correct += 1;
         s.lastResult = quality;
 
-        // SM-2 interval/ease update.
+        // SM-2 interval / ease update.
         if (quality < 3) {
             s.reps = 0;
             s.interval = 1;
@@ -226,32 +279,27 @@ class Store {
         s.ease = Math.max(1.3, s.ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02)));
         s.due = addDays(todayStr(), s.interval);
 
-        // Progressive disclosure: good performance unlocks deeper segments.
-        const segs = segmentsFor(o);
-        if (quality >= 4) {
-            s.segReps += 1;
-            if (s.segReps >= SEG_ADVANCE_AT && s.seg < segs.length - 1) {
-                s.seg += 1;
-                s.segReps = 0;
-            }
-        } else if (quality < 3) {
-            s.segReps = 0;
-        }
-
-        // XP / streak / totals
-        const xp = this._xpFor(quality, o);
+        const xp = this._xpFor(quality, node);
         this.data.xp += xp;
-        this.data.totalLessons += 1;
+        this.data.totalReviews += 1;
         this._bumpStreak();
         this.save();
-        return { xp, mastery: this.masteryPercent(id), mastered: this.isMastered(id) };
+
+        return {
+            xp,
+            mastery: this.cardMasteryPct(key),
+            cardMastered: this.cardMastered(key),
+            tier: node ? node.tier : 1,
+            tierMastery: Math.round(this.tierMastery(node ? node.tier : 1)),
+        };
     }
 
-    _xpFor(quality, o) {
-        let xp = 10;
-        if (quality === 5) xp += 10;
-        else if (quality === 4) xp += 5;
-        xp += (o.tier === 1 ? 0 : o.tier); // deeper tiers worth a touch more
+    _xpFor(quality, node) {
+        let xp = 5;
+        if (quality === 5) xp += 5;
+        else if (quality === 4) xp += 2;
+        const tier = node ? node.tier : 1;
+        xp += (tier === 1 ? 0 : tier); // rarer positions worth a touch more
         return xp;
     }
 
@@ -260,11 +308,11 @@ class Store {
         const today = todayStr();
         if (s.lastDate === today) return;            // already counted today
         if (s.lastDate && daysBetween(s.lastDate, today) === 1) s.count += 1;
-        else s.count = 1;                            // first lesson today (gap reset)
+        else s.count = 1;                            // first review today (gap reset)
         s.lastDate = today;
     }
 
-    // Map mistakes in a lesson to an SM-2 quality grade.
+    // Map wrong attempts on a single response to an SM-2 quality grade.
     static qualityFromMistakes(mistakes) {
         if (mistakes === 0) return 5;
         if (mistakes === 1) return 4;
@@ -274,5 +322,7 @@ class Store {
 }
 
 window.Store = Store;
-window.srsSegmentsFor = segmentsFor;
+window.POSITIONS = POSITIONS;
+window.POSITION_BY_KEY = POSITION_BY_KEY;
+window.OPENING_CARDS = OPENING_CARDS;
 window.srsTodayStr = todayStr;
