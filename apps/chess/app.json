@@ -1,7 +1,7 @@
 {
     "name": "Chess",
-    "description": "Two-player chess on the same device — full rules, pass and play.",
+    "description": "Chess — openings trainer, pass-and-play, and bot mode with Stockfish.",
     "icon": "icon.svg",
-    "color": "#b07d12",
+    "color": "#c8903a",
     "tags": ["game"]
 }

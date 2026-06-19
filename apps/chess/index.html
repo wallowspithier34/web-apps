@@ -4,41 +4,275 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Chess">
-    <meta name="theme-color" content="#f5f0d8">
+    <meta name="theme-color" content="#0a0c0a">
     <link rel="apple-touch-icon" href="./icon.svg">
     <link rel="manifest" href="./manifest.json">
     <title>Chess</title>
     <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-    <div id="app">
-        <header>
-            <h1>Chess</h1>
-            <span id="status">White to move</span>
-        </header>
+<div id="app">
 
-        <div id="board-wrap">
-            <div id="board"></div>
+    <!-- ══════════════════ Home ══════════════════ -->
+    <div id="screen-home" class="screen active">
+        <div class="home-header">
+            <div class="home-title">Chess</div>
+            <button class="btn-icon" id="btn-settings" aria-label="Settings">⚙</button>
+        </div>
+        <div class="elo-badge" id="elo-badge">
+            <div>
+                <div class="elo-label">Your Rating</div>
+                <div class="elo-num" id="home-elo">1200</div>
+            </div>
+            <button class="btn btn-sm elo-edit" id="btn-edit-elo">Edit</button>
+        </div>
+        <div class="home-stats" id="home-stats">
+            <div class="stat-box"><span class="stat-val" id="home-streak">0</span><span class="stat-lbl">Day streak</span></div>
+            <div class="stat-box"><span class="stat-val" id="home-xp">0</span><span class="stat-lbl">Total XP</span></div>
+            <div class="stat-box"><span class="stat-val" id="home-reviews">0</span><span class="stat-lbl">Reviews</span></div>
+        </div>
+        <div class="resume-banner" id="resume-banner" hidden>
+            <div class="resume-text">
+                <div class="resume-lbl">Resume Game</div>
+                <div class="resume-sub" id="resume-sub">Paused game</div>
+            </div>
+            <span>▶</span>
+        </div>
+        <div class="mode-tiles">
+            <button class="mode-tile" id="tile-trainer">
+                <div class="mode-icon">♟</div>
+                <div class="mode-name">Trainer</div>
+                <div class="mode-desc">Spaced-repetition opening drills</div>
+            </button>
+            <button class="mode-tile" id="tile-pvp">
+                <div class="mode-icon">⚔</div>
+                <div class="mode-name">Pass & Play</div>
+                <div class="mode-desc">Two players, one screen</div>
+            </button>
+            <button class="mode-tile" id="tile-bot">
+                <div class="mode-icon">🤖</div>
+                <div class="mode-name">vs Bot</div>
+                <div class="mode-desc">Play against Stockfish</div>
+            </button>
+            <button class="mode-tile" id="tile-library">
+                <div class="mode-icon">📖</div>
+                <div class="mode-name">Library</div>
+                <div class="mode-desc">Browse opening reference</div>
+            </button>
+        </div>
+        <div style="padding: .5rem .75rem 1rem;">
+            <button class="btn btn-sm btn-wide" id="btn-export">Export Progress</button>
+        </div>
+    </div>
+
+    <!-- ══════════════════ Play ══════════════════ -->
+    <div id="screen-play" class="screen">
+        <div class="play-top">
+            <div class="bar">
+                <button class="btn-icon" id="btn-play-back" aria-label="Back">←</button>
+                <span class="bar-title" id="play-title">Game</span>
+                <button class="btn-icon" id="btn-flip" aria-label="Flip board">⇅</button>
+            </div>
+            <div class="clock-row" id="top-clock">
+                <span class="clock-side" id="top-side">Black</span>
+                <span class="clock-time" id="top-time">—</span>
+            </div>
+            <div class="bot-status" id="bot-status" hidden>Ready</div>
+            <div class="opening-hint" id="opening-hint"></div>
+        </div>
+        <div class="board-wrap">
+            <div class="board" id="play-board"></div>
+        </div>
+        <div class="play-bottom">
+            <div class="clock-row clock-active" id="bottom-clock">
+                <span class="clock-side" id="bottom-side">White</span>
+                <span class="clock-time" id="bottom-time">—</span>
+            </div>
+            <div class="move-list" id="move-list"></div>
+            <div class="play-actions">
+                <button class="btn" id="btn-resign">Resign</button>
+                <button class="btn" id="btn-draw">Draw</button>
+                <button class="btn" id="btn-new-game">New</button>
+            </div>
         </div>
 
-        <div id="footer">
-            <div id="move-list">—</div>
-            <button id="new-game">New Game</button>
-        </div>
-
-        <!-- Promotion picker -->
+        <!-- Promotion modal -->
         <div id="promo-modal" hidden>
-            <div id="promo-panel">
+            <div class="promo-panel">
                 <p>Promote to</p>
-                <div id="promo-choices"></div>
+                <div class="promo-choices" id="promo-choices"></div>
+            </div>
+        </div>
+
+        <!-- Game-over overlay -->
+        <div id="gameover-overlay" class="gameover-overlay" hidden>
+            <div class="gameover-card">
+                <div class="gameover-icon" id="go-icon">♟</div>
+                <div class="gameover-title" id="go-title">Game Over</div>
+                <div class="gameover-sub" id="go-sub"></div>
+                <div class="elo-delta" id="go-elo-delta" hidden></div>
+                <div class="gameover-actions">
+                    <button class="btn" id="go-btn-home">Home</button>
+                    <button class="btn btn-primary" id="go-btn-again">Again</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="./chess.js"></script>
-    <script src="./script.js"></script>
-    <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");</script>
+    <!-- ══════════════════ Trainer ══════════════════ -->
+    <div id="screen-trainer" class="screen">
+        <div class="bar">
+            <button class="btn-icon" id="btn-trainer-back" aria-label="Back">←</button>
+            <span class="bar-title">Trainer</span>
+            <button class="btn-icon" id="btn-browse" aria-label="Browse openings">≡</button>
+        </div>
+        <div class="trainer-stats" id="trainer-stats">
+            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-streak">0</span><span class="trainer-stat-lbl">Streak</span></div>
+            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-xp">0</span><span class="trainer-stat-lbl">XP</span></div>
+            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-reviews">0</span><span class="trainer-stat-lbl">Reviews</span></div>
+            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-due">0</span><span class="trainer-stat-lbl">Due today</span></div>
+        </div>
+        <div class="session-btns">
+            <button class="btn btn-primary btn-wide" id="btn-daily">Daily Session</button>
+            <button class="btn btn-wide" id="btn-weakest">Review Weakest</button>
+        </div>
+        <div id="tier-sections"></div>
+    </div>
+
+    <!-- ══════════════════ Drill ══════════════════ -->
+    <div id="screen-drill" class="screen">
+        <div class="drill-bar">
+            <button class="btn-icon" id="btn-drill-back" aria-label="Back">←</button>
+            <span class="drill-name" id="drill-name">Opening</span>
+            <div class="drill-progress" id="drill-progress"></div>
+        </div>
+        <div class="drill-info">
+            <span id="turn-indicator" class="waiting">Loading…</span>
+            <span id="move-note"></span>
+        </div>
+        <div class="board-wrap">
+            <div class="board" id="drill-board"></div>
+        </div>
+
+        <!-- Completion overlay -->
+        <div id="complete-overlay">
+            <div class="complete-card">
+                <div class="complete-burst" id="comp-burst">★</div>
+                <div class="complete-title" id="comp-title">Position learned!</div>
+                <div class="complete-sub" id="comp-sub">Come back soon to review</div>
+                <div class="complete-xp" id="comp-xp">+10 XP</div>
+                <div class="mastery-bar-wrap"><div class="mastery-bar-fill" id="comp-bar" style="width:0%"></div></div>
+                <div class="mastery-bar-pct" id="comp-pct">0% mastery</div>
+                <div class="complete-actions">
+                    <button class="btn" id="comp-btn-home">Home</button>
+                    <button class="btn btn-primary" id="comp-btn-next">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════ Practice ══════════════════ -->
+    <div id="screen-practice" class="screen">
+        <div class="bar">
+            <button class="btn-icon" id="btn-practice-back" aria-label="Back">←</button>
+            <span class="bar-title">Browse Openings</span>
+        </div>
+        <div class="filters" id="practice-filters">
+            <div class="filter-group" id="filter-tier"></div>
+            <div class="filter-group" id="filter-color"></div>
+        </div>
+        <div class="practice-list" id="practice-list"></div>
+    </div>
+
+    <!-- ══════════════════ Library ══════════════════ -->
+    <div id="screen-library" class="screen">
+        <div class="bar">
+            <button class="btn-icon" id="btn-library-back" aria-label="Back">←</button>
+            <span class="bar-title">Library</span>
+        </div>
+        <div class="library-list" id="library-list"></div>
+    </div>
+
+    <!-- ══════════════════ Settings Panel ══════════════════ -->
+    <div id="settings-panel" hidden>
+        <div class="settings-bar">
+            <button class="btn-icon" id="btn-settings-close">←</button>
+            <span class="settings-title">Settings</span>
+        </div>
+        <div class="settings-body">
+
+            <div class="settings-section">
+                <span class="settings-label">Your Elo Rating</span>
+                <div class="elo-row">
+                    <div class="elo-display" id="st-elo-display">1200</div>
+                    <div class="elo-input-wrap" id="st-elo-input-wrap">
+                        <input type="number" class="elo-input" id="st-elo-input" min="100" max="3000" value="1200">
+                        <button class="btn btn-sm" id="st-elo-save">Save</button>
+                        <button class="btn btn-sm" id="st-elo-cancel">✕</button>
+                    </div>
+                    <button class="btn btn-sm" id="st-elo-edit">Edit</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <span class="settings-label">Piece Style</span>
+                <div class="opt-grid" id="piece-style-grid"></div>
+            </div>
+
+            <div class="settings-section">
+                <span class="settings-label">Board Colour</span>
+                <div class="swatch-grid" id="board-swatch-grid"></div>
+            </div>
+
+            <div class="settings-section">
+                <span class="settings-label">Timer</span>
+                <div class="radio-row" id="timer-radio"></div>
+            </div>
+
+            <div class="settings-section">
+                <span class="settings-label">Bot Difficulty</span>
+                <div class="radio-row" style="margin-bottom:.5rem">
+                    <button class="radio-btn active" id="diff-auto" data-diff="auto">Auto (by Elo)</button>
+                    <button class="radio-btn" id="diff-manual" data-diff="manual">Manual</button>
+                </div>
+                <div id="skill-row-wrap" class="skill-row" style="display:none">
+                    <span style="font-size:.65rem;color:var(--text-faint)">Skill</span>
+                    <input type="range" id="skill-slider" min="0" max="20" value="10">
+                    <span class="skill-val" id="skill-val">10</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <button class="btn btn-wide" id="st-export">Export Progress (Markdown)</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ══════════════════ Toast ══════════════════ -->
+    <div id="toast" role="alert" aria-live="polite"></div>
+
+</div><!-- #app -->
+
+<script src="./chess.js"></script>
+<script src="./openings.js"></script>
+<script src="./srs.js"></script>
+<script src="./board.js"></script>
+<script src="./elo.js"></script>
+<script src="./timer.js"></script>
+<script src="./bot.js"></script>
+<script src="./opening-detect.js"></script>
+<script src="./export.js"></script>
+<script src="./home.js"></script>
+<script src="./play.js"></script>
+<script src="./trainer.js"></script>
+<script src="./library.js"></script>
+<script>
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js");
+    }
+</script>
 </body>
 </html>

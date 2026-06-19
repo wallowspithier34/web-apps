@@ -3,7 +3,7 @@
     "short_name": "Chess",
     "start_url": "./index.html",
     "display": "standalone",
-    "background_color": "#f5f0d8",
-    "theme_color": "#b07d12",
+    "background_color": "#0a0c0a",
+    "theme_color": "#c8903a",
     "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml" }]
 }
