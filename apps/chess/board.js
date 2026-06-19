@@ -42,52 +42,7 @@ const PIECE_SVG = {
         <rect x="11" y="31.4" width="23" height="6.2" rx="2"/>`,
 };
 
-// ── Pixel-art pieces (16×16 rect grid) ───────────────────────────────────
-// Three styles: pixel-staunton (blocky Staunton), pixel-abstract (geometric
-// symbols), pixel-fantasy (dungeon-crawler sprites).
-// All use fill="currentColor"; the .white / .black CSS classes drive colour.
-
-const PIXEL_STAUNTON = {
-    K: `<rect x="7" y="0" width="2" height="1"/><rect x="5" y="1" width="6" height="1"/><rect x="7" y="2" width="2" height="1"/><rect x="4" y="3" width="8" height="1"/><rect x="3" y="4" width="10" height="2"/><rect x="4" y="6" width="8" height="1"/><rect x="5" y="7" width="6" height="2"/><rect x="4" y="9" width="8" height="2"/><rect x="3" y="11" width="10" height="1"/><rect x="2" y="12" width="12" height="1"/><rect x="1" y="13" width="14" height="3"/>`,
-    Q: `<rect x="2" y="0" width="2" height="2"/><rect x="7" y="0" width="2" height="2"/><rect x="12" y="0" width="2" height="2"/><rect x="1" y="2" width="14" height="1"/><rect x="2" y="3" width="12" height="2"/><rect x="3" y="5" width="10" height="2"/><rect x="4" y="7" width="8" height="2"/><rect x="3" y="9" width="10" height="2"/><rect x="2" y="11" width="12" height="1"/><rect x="1" y="12" width="14" height="1"/><rect x="0" y="13" width="16" height="3"/>`,
-    R: `<rect x="2" y="0" width="3" height="2"/><rect x="6" y="0" width="3" height="2"/><rect x="10" y="0" width="3" height="2"/><rect x="2" y="2" width="12" height="1"/><rect x="3" y="3" width="10" height="8"/><rect x="2" y="11" width="12" height="1"/><rect x="1" y="12" width="14" height="1"/><rect x="0" y="13" width="16" height="3"/>`,
-    B: `<rect x="7" y="0" width="2" height="1"/><rect x="6" y="1" width="4" height="1"/><rect x="5" y="2" width="6" height="1"/><rect x="4" y="3" width="8" height="2"/><rect x="5" y="5" width="6" height="1"/><rect x="6" y="6" width="4" height="1"/><rect x="5" y="7" width="6" height="1"/><rect x="4" y="8" width="8" height="1"/><rect x="3" y="9" width="10" height="1"/><rect x="2" y="10" width="12" height="1"/><rect x="1" y="11" width="14" height="2"/><rect x="0" y="13" width="16" height="3"/>`,
-    N: `<rect x="5" y="0" width="3" height="1"/><rect x="4" y="1" width="5" height="1"/><rect x="3" y="2" width="7" height="1"/><rect x="2" y="3" width="9" height="2"/><rect x="3" y="5" width="8" height="1"/><rect x="4" y="6" width="6" height="1"/><rect x="5" y="7" width="4" height="1"/><rect x="2" y="8" width="10" height="1"/><rect x="1" y="9" width="12" height="1"/><rect x="0" y="10" width="14" height="2"/><rect x="0" y="12" width="15" height="1"/><rect x="0" y="13" width="16" height="3"/>`,
-    P: `<rect x="6" y="1" width="4" height="1"/><rect x="5" y="2" width="6" height="2"/><rect x="6" y="4" width="4" height="1"/><rect x="7" y="5" width="2" height="2"/><rect x="5" y="7" width="6" height="1"/><rect x="4" y="8" width="8" height="3"/><rect x="3" y="11" width="10" height="1"/><rect x="2" y="12" width="12" height="1"/><rect x="1" y="13" width="14" height="3"/>`,
-};
-
-const PIXEL_ABSTRACT = {
-    // K: Bold plus sign
-    K: `<rect x="5" y="0" width="6" height="16"/><rect x="0" y="5" width="16" height="6"/>`,
-    // Q: Diamond
-    Q: `<rect x="7" y="1" width="2" height="1"/><rect x="5" y="2" width="6" height="1"/><rect x="3" y="3" width="10" height="1"/><rect x="2" y="4" width="12" height="1"/><rect x="1" y="5" width="14" height="2"/><rect x="2" y="7" width="12" height="1"/><rect x="3" y="8" width="10" height="1"/><rect x="5" y="9" width="6" height="1"/><rect x="7" y="10" width="2" height="1"/>`,
-    // R: Solid rectangle (bold block)
-    R: `<rect x="2" y="1" width="12" height="14"/>`,
-    // B: Solid upward triangle + stem
-    B: `<rect x="7" y="0" width="2" height="1"/><rect x="6" y="1" width="4" height="1"/><rect x="5" y="2" width="6" height="1"/><rect x="4" y="3" width="8" height="1"/><rect x="3" y="4" width="10" height="1"/><rect x="2" y="5" width="12" height="1"/><rect x="1" y="6" width="14" height="1"/><rect x="0" y="7" width="16" height="1"/><rect x="6" y="8" width="4" height="4"/><rect x="3" y="12" width="10" height="4"/>`,
-    // N: Bold L-shape (Γ)
-    N: `<rect x="1" y="1" width="6" height="11"/><rect x="1" y="10" width="14" height="5"/>`,
-    // P: Small filled circle-ish (square with chamfered corners)
-    P: `<rect x="5" y="3" width="6" height="1"/><rect x="4" y="4" width="8" height="5"/><rect x="5" y="9" width="6" height="1"/><rect x="2" y="11" width="12" height="5"/>`,
-};
-
-const PIXEL_FANTASY = {
-    // K: Royal crown + armored body
-    K: `<rect x="1" y="0" width="3" height="4"/><rect x="6" y="0" width="4" height="4"/><rect x="12" y="0" width="3" height="4"/><rect x="0" y="4" width="16" height="2"/><rect x="3" y="6" width="10" height="3"/><rect x="4" y="9" width="8" height="2"/><rect x="3" y="11" width="10" height="1"/><rect x="1" y="12" width="14" height="4"/>`,
-    // Q: Wizard hat (tall pointed hat) + robes
-    Q: `<rect x="7" y="0" width="2" height="1"/><rect x="6" y="1" width="4" height="1"/><rect x="5" y="2" width="6" height="2"/><rect x="4" y="4" width="8" height="2"/><rect x="0" y="6" width="16" height="1"/><rect x="2" y="7" width="12" height="3"/><rect x="1" y="10" width="14" height="2"/><rect x="0" y="12" width="16" height="4"/>`,
-    // R: Castle tower with battlements
-    R: `<rect x="1" y="0" width="3" height="3"/><rect x="6" y="0" width="3" height="3"/><rect x="11" y="0" width="3" height="3"/><rect x="1" y="3" width="14" height="2"/><rect x="7" y="5" width="2" height="3"/><rect x="1" y="5" width="14" height="0"/><rect x="2" y="8" width="12" height="5"/><rect x="1" y="11" width="14" height="2"/><rect x="0" y="13" width="16" height="3"/>`,
-    // B: Holy cross on a robe
-    B: `<rect x="7" y="0" width="2" height="5"/><rect x="4" y="2" width="8" height="2"/><rect x="7" y="5" width="2" height="4"/><rect x="5" y="9" width="6" height="1"/><rect x="4" y="10" width="8" height="2"/><rect x="3" y="12" width="10" height="4"/>`,
-    // N: Knight helmet with visor
-    N: `<rect x="3" y="0" width="10" height="1"/><rect x="2" y="1" width="12" height="1"/><rect x="1" y="2" width="13" height="1"/><rect x="1" y="3" width="13" height="3"/><rect x="4" y="3" width="7" height="2"/><rect x="1" y="6" width="7" height="1"/><rect x="2" y="7" width="10" height="2"/><rect x="1" y="9" width="12" height="2"/><rect x="0" y="11" width="14" height="2"/><rect x="0" y="13" width="16" height="3"/>`,
-    // P: Small armored soldier (shield shape)
-    P: `<rect x="6" y="1" width="4" height="3"/><rect x="5" y="4" width="6" height="2"/><rect x="4" y="6" width="8" height="3"/><rect x="3" y="9" width="10" height="2"/><rect x="2" y="11" width="12" height="2"/><rect x="1" y="13" width="14" height="3"/>`,
-};
-
-const PIXEL_SETS = { "pixel-staunton": PIXEL_STAUNTON, "pixel-abstract": PIXEL_ABSTRACT, "pixel-fantasy": PIXEL_FANTASY };
-const IMG_SETS   = ["cburnett", "merida", "maestro"];
+const IMG_SETS = ["pixel", "cburnett", "merida", "maestro"];
 
 // ── Board module ──────────────────────────────────────────────────────────
 
@@ -150,9 +105,6 @@ const Board = (() => {
         if (style === "letters") return { html: `<span class="piece-letter">${LETTER[type]}</span>` };
         if (style === "modern") {
             return { html: `<svg viewBox="0 0 45 45"${wh} aria-hidden="true">${PIECE_SVG[type]}</svg>` };
-        }
-        if (PIXEL_SETS[style]) {
-            return { html: `<svg viewBox="0 0 16 16"${wh} shape-rendering="crispEdges" aria-hidden="true">${PIXEL_SETS[style][type]}</svg>` };
         }
         return { text: LETTER[type] };
     }
@@ -328,6 +280,5 @@ const Board = (() => {
     };
 })();
 
-window.Board = Board;
-window.IMG_SETS   = IMG_SETS;
-window.PIXEL_SETS = PIXEL_SETS;
+window.Board    = Board;
+window.IMG_SETS = IMG_SETS;

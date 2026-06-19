@@ -1,5 +1,5 @@
-const CACHE = "chess-v2";
-const OLD_CACHES = ["chess-v1"];
+const CACHE = "chess-v3";
+const OLD_CACHES = ["chess-v1", "chess-v2"];
 
 const ASSETS = [
     "./",
@@ -20,6 +20,11 @@ const ASSETS = [
     "./play.js",
     "./trainer.js",
     "./library.js",
+    // Pixel pieces (Lichess pixel set)
+    "./pieces/pixel/wK.svg", "./pieces/pixel/wQ.svg", "./pieces/pixel/wR.svg",
+    "./pieces/pixel/wB.svg", "./pieces/pixel/wN.svg", "./pieces/pixel/wP.svg",
+    "./pieces/pixel/bK.svg", "./pieces/pixel/bQ.svg", "./pieces/pixel/bR.svg",
+    "./pieces/pixel/bB.svg", "./pieces/pixel/bN.svg", "./pieces/pixel/bP.svg",
     // CBurnett pieces
     "./pieces/cburnett/wK.svg", "./pieces/cburnett/wQ.svg", "./pieces/cburnett/wR.svg",
     "./pieces/cburnett/wB.svg", "./pieces/cburnett/wN.svg", "./pieces/cburnett/wP.svg",

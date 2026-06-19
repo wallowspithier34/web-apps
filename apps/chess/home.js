@@ -14,19 +14,17 @@ const BOARD_THEMES = [
 ];
 
 const PIECE_STYLES = [
-    { id: "pixel-staunton", label: "Pixel",     preview: ["K","P"] },
-    { id: "pixel-abstract", label: "Abstract",  preview: ["K","P"] },
-    { id: "pixel-fantasy",  label: "Fantasy",   preview: ["K","P"] },
-    { id: "modern",         label: "Modern",    preview: ["K","P"] },
-    { id: "classic",        label: "Classic",   preview: ["K","P"] },
-    { id: "cburnett",       label: "CBurnett",  preview: ["K","P"] },
-    { id: "merida",         label: "Merida",    preview: ["K","P"] },
-    { id: "maestro",        label: "Maestro",   preview: ["K","P"] },
-    { id: "letters",        label: "Letters",   preview: ["K","P"] },
+    { id: "pixel",     label: "Pixel",    preview: ["K","P"] },
+    { id: "cburnett",  label: "CBurnett", preview: ["K","P"] },
+    { id: "merida",    label: "Merida",   preview: ["K","P"] },
+    { id: "maestro",   label: "Maestro",  preview: ["K","P"] },
+    { id: "modern",    label: "Modern",   preview: ["K","P"] },
+    { id: "classic",   label: "Classic",  preview: ["K","P"] },
+    { id: "letters",   label: "Letters",  preview: ["K","P"] },
 ];
 
 const DEFAULT_PREFS = {
-    pieces: "pixel-staunton",
+    pieces: "pixel",
     board:  "dungeon",
     timerPreset: NO_TIMER_IDX,
     botDifficulty: { mode: "auto", skillLevel: 10 },
@@ -48,6 +46,11 @@ function loadPrefs() {
         const raw = localStorage.getItem(PREFS_KEY);
         if (raw) {
             _prefs = Object.assign({}, DEFAULT_PREFS, JSON.parse(raw));
+            // If saved piece style no longer exists, reset to default
+            if (!PIECE_STYLES.find((s) => s.id === _prefs.pieces)) {
+                _prefs.pieces = DEFAULT_PREFS.pieces;
+                savePrefs();
+            }
             return;
         }
         // Migrate piece/board from old chess-openings prefs if present
@@ -112,8 +115,6 @@ function openSettings() {
     document.getElementById("st-elo-input").value = _eloStore.elo;
     _renderPieceStyleGrid();
     _renderBoardSwatches();
-    _renderTimerRadio();
-    _renderDiffSettings();
 }
 
 function _renderPieceStyleGrid() {
@@ -159,8 +160,15 @@ function _renderBoardSwatches() {
     }
 }
 
-function _renderTimerRadio() {
-    const row = document.getElementById("timer-radio");
+function _renderHomeBotConfig() {
+    const isAuto = _prefs.botDifficulty.mode === "auto";
+    document.getElementById("home-diff-auto").classList.toggle("active", isAuto);
+    document.getElementById("home-diff-manual").classList.toggle("active", !isAuto);
+    document.getElementById("home-skill-row-wrap").style.display = isAuto ? "none" : "flex";
+    document.getElementById("home-skill-slider").value = _prefs.botDifficulty.skillLevel;
+    document.getElementById("home-skill-val").textContent = _prefs.botDifficulty.skillLevel;
+
+    const row = document.getElementById("home-timer-radio");
     row.innerHTML = "";
     TIMER_PRESETS.forEach((p, i) => {
         const btn = document.createElement("button");
@@ -169,19 +177,10 @@ function _renderTimerRadio() {
         btn.addEventListener("click", () => {
             _prefs.timerPreset = i;
             savePrefs();
-            _renderTimerRadio();
+            _renderHomeBotConfig();
         });
         row.appendChild(btn);
     });
-}
-
-function _renderDiffSettings() {
-    const isAuto   = _prefs.botDifficulty.mode === "auto";
-    document.getElementById("diff-auto").classList.toggle("active", isAuto);
-    document.getElementById("diff-manual").classList.toggle("active", !isAuto);
-    document.getElementById("skill-row-wrap").style.display = isAuto ? "none" : "flex";
-    document.getElementById("skill-slider").value = _prefs.botDifficulty.skillLevel;
-    document.getElementById("skill-val").textContent = _prefs.botDifficulty.skillLevel;
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -224,12 +223,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.getElementById("btn-settings").addEventListener("click", openSettings);
-    document.getElementById("btn-edit-elo").addEventListener("click", () => {
-        const input = document.getElementById("st-elo-input");
-        input.value = _eloStore.elo;
-        document.getElementById("st-elo-input-wrap").classList.add("active");
-        input.focus();
-        openSettings();
+
+    // ── Home bot config ──
+    _renderHomeBotConfig();
+    document.getElementById("home-diff-auto").addEventListener("click", () => {
+        _prefs.botDifficulty.mode = "auto";
+        savePrefs();
+        _renderHomeBotConfig();
+    });
+    document.getElementById("home-diff-manual").addEventListener("click", () => {
+        _prefs.botDifficulty.mode = "manual";
+        savePrefs();
+        _renderHomeBotConfig();
+    });
+    document.getElementById("home-skill-slider").addEventListener("input", (e) => {
+        _prefs.botDifficulty.skillLevel = parseInt(e.target.value, 10);
+        document.getElementById("home-skill-val").textContent = _prefs.botDifficulty.skillLevel;
+        savePrefs();
     });
 
     // ── Settings panel ──
@@ -237,9 +247,6 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("settings-panel").hidden = true;
         refreshHome();
     });
-
-    // Elo edit inline (home screen)
-    document.getElementById("btn-edit-elo").addEventListener("click", openSettings);
 
     // Elo edit in settings
     document.getElementById("st-elo-edit").addEventListener("click", () => {
@@ -260,21 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
         catch (e) { showToast("Export failed: " + e.message); }
     });
 
-    document.getElementById("diff-auto").addEventListener("click", () => {
-        _prefs.botDifficulty.mode = "auto";
-        savePrefs();
-        _renderDiffSettings();
-    });
-    document.getElementById("diff-manual").addEventListener("click", () => {
-        _prefs.botDifficulty.mode = "manual";
-        savePrefs();
-        _renderDiffSettings();
-    });
-    document.getElementById("skill-slider").addEventListener("input", (e) => {
-        _prefs.botDifficulty.skillLevel = parseInt(e.target.value, 10);
-        document.getElementById("skill-val").textContent = _prefs.botDifficulty.skillLevel;
-        savePrefs();
-    });
 });
 
 window.showScreen   = showScreen;

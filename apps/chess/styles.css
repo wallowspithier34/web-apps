@@ -119,15 +119,6 @@ body {
     animation: flicker 7s ease-in-out infinite;
 }
 
-/* CRT scanlines over the board */
-.board-wrap::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(to bottom,
-        transparent 0, transparent 2px, rgba(0,0,0,.2) 2px, rgba(0,0,0,.2) 4px);
-    pointer-events: none; z-index: 10;
-}
-
 /* Vignette */
 .board-wrap::before {
     content: '';
@@ -226,13 +217,6 @@ body {
 /* SVG stroke/edge accent */
 .piece.white .eye, .piece.white .slit { fill: var(--pw-edge); }
 .piece.black .eye, .piece.black .slit { fill: var(--pb-edge); }
-
-/* Pixel SVG sizing and sharpening */
-[class*="ps-pixel-"] svg {
-    width: 82%; height: 82%;
-    image-rendering: pixelated;
-    shape-rendering: crispEdges;
-}
 
 /* IMG-based sets */
 .piece-img {
@@ -344,7 +328,7 @@ body {
 }
 .elo-num { font-size: 1.4rem; font-weight: 700; color: var(--gold-bright); }
 .elo-label { font-size: .7rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: .08em; }
-.elo-edit { margin-left: auto; }
+.elo-edit { margin-left: auto; } /* kept for settings; home screen button removed */
 
 .mode-tiles {
     display: grid;
@@ -382,6 +366,28 @@ body {
 .resume-text { flex: 1; }
 .resume-lbl { font-size: .7rem; color: var(--gold); text-transform: uppercase; letter-spacing: .07em; }
 .resume-sub { font-size: .62rem; color: var(--text-dim); margin-top: .15rem; }
+
+/* Bot config strip on home screen */
+.home-bot-config {
+    padding: .6rem .75rem .8rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+}
+.home-bot-hdr {
+    display: flex; align-items: center; gap: .4rem;
+    margin-bottom: .45rem;
+}
+.home-bot-lbl {
+    font-size: .6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--text-faint);
+}
+.home-bot-row { margin-bottom: .35rem; }
+.home-bot-row:last-child { margin-bottom: 0; }
+.home-bot-sub {
+    font-size: .58rem; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: .07em; display: block; margin-bottom: .25rem;
+}
 
 /* ══════════════════════════ Play screen ══════════════════════════ */
 #screen-play { background: var(--bg); }

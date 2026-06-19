@@ -26,7 +26,6 @@
                 <div class="elo-label">Your Rating</div>
                 <div class="elo-num" id="home-elo">1200</div>
             </div>
-            <button class="btn btn-sm elo-edit" id="btn-edit-elo">Edit</button>
         </div>
         <div class="home-stats" id="home-stats">
             <div class="stat-box"><span class="stat-val" id="home-streak">0</span><span class="stat-lbl">Day streak</span></div>
@@ -61,6 +60,29 @@
                 <div class="mode-name">Library</div>
                 <div class="mode-desc">Browse opening reference</div>
             </button>
+        </div>
+        <!-- Bot settings (difficulty + timer) inline on home screen -->
+        <div class="home-bot-config" id="home-bot-config">
+            <div class="home-bot-hdr">
+                <span>🤖</span>
+                <span class="home-bot-lbl">Bot Settings</span>
+            </div>
+            <div class="home-bot-row">
+                <span class="home-bot-sub">Difficulty</span>
+                <div class="radio-row">
+                    <button class="radio-btn" id="home-diff-auto">Auto (by Elo)</button>
+                    <button class="radio-btn" id="home-diff-manual">Manual</button>
+                </div>
+                <div id="home-skill-row-wrap" class="skill-row" style="display:none;margin-top:.3rem">
+                    <span style="font-size:.65rem;color:var(--text-faint)">Skill</span>
+                    <input type="range" id="home-skill-slider" min="0" max="20" value="10">
+                    <span class="skill-val" id="home-skill-val">10</span>
+                </div>
+            </div>
+            <div class="home-bot-row">
+                <span class="home-bot-sub">Timer</span>
+                <div class="radio-row" id="home-timer-radio"></div>
+            </div>
         </div>
         <div style="padding: .5rem .75rem 1rem;">
             <button class="btn btn-sm btn-wide" id="btn-export">Export Progress</button>
@@ -224,24 +246,6 @@
             <div class="settings-section">
                 <span class="settings-label">Board Colour</span>
                 <div class="swatch-grid" id="board-swatch-grid"></div>
-            </div>
-
-            <div class="settings-section">
-                <span class="settings-label">Timer</span>
-                <div class="radio-row" id="timer-radio"></div>
-            </div>
-
-            <div class="settings-section">
-                <span class="settings-label">Bot Difficulty</span>
-                <div class="radio-row" style="margin-bottom:.5rem">
-                    <button class="radio-btn active" id="diff-auto" data-diff="auto">Auto (by Elo)</button>
-                    <button class="radio-btn" id="diff-manual" data-diff="manual">Manual</button>
-                </div>
-                <div id="skill-row-wrap" class="skill-row" style="display:none">
-                    <span style="font-size:.65rem;color:var(--text-faint)">Skill</span>
-                    <input type="range" id="skill-slider" min="0" max="20" value="10">
-                    <span class="skill-val" id="skill-val">10</span>
-                </div>
             </div>
 
             <div class="settings-section">
