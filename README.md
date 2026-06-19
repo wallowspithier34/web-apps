@@ -196,7 +196,7 @@ confirm assets load, and confirm `localStorage` survives a refresh.
 | Slug                | Name                    | Notes |
 |---------------------|-------------------------|-------|
 | `analog-clock`      | Analog Clock            | Live analog clock; single `script.js`. |
-| `chess`             | Chess                   | Unified chess app: Opening Trainer (SM-2 SRS, shares progress with `chess-openings`), Pass & Play, and vs Stockfish bot. 9 piece styles (3 pixel-art), 6 board themes, chess clock, Elo tracking. Retro pixel-art dark aesthetic. |
+| `chess`             | Chess                   | Unified chess app: Opening Trainer (SM-2 SRS, shares progress with `chess-openings`), Pass & Play, and vs Stockfish bot. 7 piece styles (Lichess pixel set default; also CBurnett, Merida, Maestro, Modern, Classic, Letters), 6 board themes, chess clock. Bot difficulty and timer configured directly on the home screen; Elo edited in Settings. Retro dark aesthetic, no CRT overlay. |
 | `chess-openings`    | Chess Openings Trainer  | The largest app — see below. |
 | `posts`             | Posts                   | Markdown reader (`markdown.js` + `posts/`), reader settings, opt-in dark mode (`posts-dark`). |
 | `solitaire`         | Solitaire               | Klondike; ~33 KB single-file game engine in `script.js`. |
