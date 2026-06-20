@@ -382,3 +382,8 @@ Starting a new game (or "Play Again" before the current game ends) while a bot g
 
 **37. Move the Export Progress button into the Settings menu only**  
 The Export Progress button currently appears on both the Home screen (`btn-export`, `index.html:88`) and in Settings (`st-export`, alongside Import). Remove the Home-screen copy so export lives only in Settings next to Import, decluttering the home screen and keeping save/restore together.
+
+### Board rendering
+
+**38. (Bug) Board tiling colors look wrong after a move**  
+After making a move, squares can keep stray highlight tints — the previously selected square stays tinted and the legal-move target squares keep their dot/outline markers. Root cause: `_executeMove` ([play.js:317](apps/chess/play.js:317)) plays the move but never calls `Board.deselect()` / `clearHighlights()`, so the `sq-sel` and `sq-legal`/`sq-legal-cap` classes added by `selectSquare` persist on the board. (Separately, `animateMove` doesn't refresh the intended last-move tint during normal play, so `sq-last` may not track the latest move.) Investigate & fix: clear selection highlights at the end of `_executeMove`, and update the last-move tint via `Board.setLastMove(...)` + `applyLastTint()` so only the from/to of the latest move are highlighted.
