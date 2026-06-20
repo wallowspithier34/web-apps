@@ -42,7 +42,9 @@ const PIECE_SVG = {
         <rect x="11" y="31.4" width="23" height="6.2" rx="2"/>`,
 };
 
-const IMG_SETS = ["pixel", "cburnett", "merida", "maestro"];
+// Image-based piece sets. PNG_SETS load .png files; the rest load .svg.
+const PNG_SETS = ["shaded", "flat"];
+const IMG_SETS = ["pixel", "cburnett", "merida", "maestro", ...PNG_SETS];
 
 // ── Board module ──────────────────────────────────────────────────────────
 
@@ -97,7 +99,8 @@ const Board = (() => {
         const type  = char.toUpperCase();
         const wh    = sz ? ` width="${sz}" height="${sz}"` : "";
         if (IMG_SETS.includes(style)) {
-            const file = (char === char.toUpperCase() ? "w" : "b") + type + ".svg";
+            const ext  = PNG_SETS.includes(style) ? ".png" : ".svg";
+            const file = (char === char.toUpperCase() ? "w" : "b") + type + ext;
             const dim  = sz ? ` width="${sz}" height="${sz}"` : ``;
             return { html: `<img class="piece-img"${dim} src="./pieces/${style}/${file}" alt="" draggable="false">` };
         }

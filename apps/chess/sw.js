@@ -1,5 +1,5 @@
-const CACHE = "chess-v7";
-const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6"];
+const CACHE = "chess-v8";
+const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6", "chess-v7"];
 
 const ASSETS = [
     "./",
@@ -41,6 +41,16 @@ const ASSETS = [
     "./pieces/maestro/wB.svg", "./pieces/maestro/wN.svg", "./pieces/maestro/wP.svg",
     "./pieces/maestro/bK.svg", "./pieces/maestro/bQ.svg", "./pieces/maestro/bR.svg",
     "./pieces/maestro/bB.svg", "./pieces/maestro/bN.svg", "./pieces/maestro/bP.svg",
+    // Shaded pieces (pixel-art PNG)
+    "./pieces/shaded/wK.png", "./pieces/shaded/wQ.png", "./pieces/shaded/wR.png",
+    "./pieces/shaded/wB.png", "./pieces/shaded/wN.png", "./pieces/shaded/wP.png",
+    "./pieces/shaded/bK.png", "./pieces/shaded/bQ.png", "./pieces/shaded/bR.png",
+    "./pieces/shaded/bB.png", "./pieces/shaded/bN.png", "./pieces/shaded/bP.png",
+    // Flat pieces (pixel-art PNG)
+    "./pieces/flat/wK.png", "./pieces/flat/wQ.png", "./pieces/flat/wR.png",
+    "./pieces/flat/wB.png", "./pieces/flat/wN.png", "./pieces/flat/wP.png",
+    "./pieces/flat/bK.png", "./pieces/flat/bQ.png", "./pieces/flat/bR.png",
+    "./pieces/flat/bB.png", "./pieces/flat/bN.png", "./pieces/flat/bP.png",
 ];
 
 self.addEventListener("install", (e) => {

@@ -141,10 +141,12 @@ A read-only reference for all openings in the database. Each entry shows the ope
 
 ## Piece Styles & Board Themes
 
-### Piece styles (7)
+### Piece styles (9)
 | ID | Name | Description |
 |----|------|-------------|
 | `pixel` | Pixel | Lichess pixel set — blocky, retro |
+| `shaded` | Shaded | Pixel-art Staunton with 3D shading (PNG) |
+| `flat` | Flat | Bold flat pixel-art silhouettes (PNG) |
 | `cburnett` | CBurnett | Colorful hand-drawn (default Lichess style) |
 | `merida` | Merida | Ornate serif Staunton |
 | `maestro` | Maestro | Geometric modern |
@@ -152,7 +154,7 @@ A read-only reference for all openings in the database. Each entry shows the ope
 | `classic` | Classic | Traditional Staunton |
 | `letters` | Letters | Plain letters only (K/Q/R/B/N/P) |
 
-Pieces are SVG files at `./pieces/[style]/[wb][PIECE].svg`.
+Image-based sets live at `./pieces/[style]/[wb][PIECE].(svg|png)`. The original four image sets (`pixel`, `cburnett`, `merida`, `maestro`) are SVG; the two newer sets (`shaded`, `flat`) are PNG — listed in `PNG_SETS` in `board.js`, which selects the `.png` extension. `classic`/`letters` are glyph/text (no files); `modern` is inline SVG.
 
 ### Board color themes (6)
 | ID | Name | Light square | Dark square |
@@ -266,12 +268,12 @@ The Elo ↔ Skill Level mapping (Skill 0 ≈ 200 Elo, …, Skill 20 ≈ 2700 Elo
 
 ---
 
-**11. Integrate two new pixel piece set variants**  
-Two new piece set variants have been saved in `pieces/pixel_chess_set_exact_previous_images/` and are ready to wire up:
-- `black/` — pixel pieces rendered with a black fill style
-- `white_no_outer_outline/` — pixel pieces with white fill and no outer outline
-
-These need to be registered as selectable styles in the Settings panel alongside the existing 7 styles. They are PNGs (not SVGs), so the board renderer may need a small adjustment to load `.png` instead of `.svg` for these two styles.
+**11. Integrate two new pixel piece set variants** — ✅ Resolved 2026-06-20  
+~~Two new piece designs were sitting as stray assets (a contact-sheet image and a folder of images).~~ Both are now selectable styles (`shaded`, `flat`) in Settings, and `board.js` loads `.png` for them via `PNG_SETS`. Processing notes (the source assets were not directly usable):
+- **`shaded`** — built from the contact-sheet image (12 pieces, 6×2, on an opaque gray background) by slicing into cells, flood-filling the background to transparent, keeping the largest connected component (drops neighbor-cell fragments), trimming, and downscaling to 160px.
+- **`flat`** — the supplied folder had **opaque** (not transparent) RGB backgrounds, and its white set was white-on-white with no outer outline (un-keyable). So the black pieces were background-keyed from the folder, and the **white pieces were derived by color-inverting the keyed black pieces** (matched silhouettes, internal detail preserved).
+- Both sets are downscaled/optimized to ~80–215 KB total each (the raw sources were ~1 MB per piece, ~10 MB+) and precached in `sw.js` (cache `chess-v8`).
+- The raw source assets (the contact-sheet PNG and `pixel_chess_set_exact_previous_images/`) are intentionally kept on disk **untracked** as a regeneration backup; they are not committed.
 
 ---
 

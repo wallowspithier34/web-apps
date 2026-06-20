@@ -15,6 +15,8 @@ const BOARD_THEMES = [
 
 const PIECE_STYLES = [
     { id: "pixel",     label: "Pixel",    preview: ["K","P"] },
+    { id: "shaded",    label: "Shaded",   preview: ["K","P"] },
+    { id: "flat",      label: "Flat",     preview: ["K","P"] },
     { id: "cburnett",  label: "CBurnett", preview: ["K","P"] },
     { id: "merida",    label: "Merida",   preview: ["K","P"] },
     { id: "maestro",   label: "Maestro",  preview: ["K","P"] },
