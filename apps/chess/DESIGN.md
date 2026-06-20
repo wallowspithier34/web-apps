@@ -375,3 +375,8 @@ Remove the "Draw" action entirely in bot mode (the engine never agrees, and it c
 
 **36. "New Game" mid-game vs the bot should count as a resignation**  
 Starting a new game (or "Play Again" before the current game ends) while a bot game is in progress currently abandons the game with no result. It should be recorded as a loss/resignation (Elo + game history) before the new game starts.
+
+### UI placement
+
+**37. Move the Export Progress button into the Settings menu only**  
+The Export Progress button currently appears on both the Home screen (`btn-export`, `index.html:88`) and in Settings (`st-export`, alongside Import). Remove the Home-screen copy so export lives only in Settings next to Import, decluttering the home screen and keeping save/restore together.
