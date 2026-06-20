@@ -335,3 +335,43 @@ Export shows no success confirmation (`home.js:265`); the Settings panel can't b
 
 **26. (Low) Long Stockfish load shows only a static "Loading engine…"**  
 The ~10 MB engine load (`play.js:222`) has no progress indicator, timeout, or cancel, so on a slow first load the app appears frozen. Fix: add a spinner/progress and a fallback/timeout message.
+
+---
+
+*Items #27–#36 below are feature requests / improvements added on 2026-06-20 (not yet implemented).*
+
+### Accessibility & legibility
+
+**27. Adjustable text size & color in Settings (accessibility)**  
+Add Settings controls to scale the UI text size (e.g. a few steps from normal → large → extra-large) and to choose the text color, persisted in prefs. Should drive a root token (e.g. a `--text-scale` multiplier and a `--text` override) so it applies app-wide. This is the core accessibility request and also the Settings half of #31.
+
+**28. Legibility overhaul — darker, higher-contrast UI**  
+Make the whole UI more legible: push backgrounds darker (solid `#000` where possible), and make more UI elements white or white-bordered so controls and panels read clearly. Tighten contrast on dimmed/faint text (`--text-dim`, `--text-faint`) which is currently low-contrast on the dark surfaces. Pairs with #27 (user-adjustable text) and #29.
+
+**29. Rank/file coordinate markers are hard to read**  
+The board coordinate labels (`.coord-rank` / `.coord-file` in `styles.css`) render in `--text-faint` (`#555`) over the board squares and are barely visible. Fix: increase contrast/size, or give them an outline/halo so they read on both light and dark squares.
+
+### Gameplay features
+
+**30. Pre-move vs the bot**  
+Allow the player to queue a move while the bot is thinking (`_waiting`), then auto-play it (if legal) once the bot replies — like lichess/chess.com pre-moves. Needs a pre-move buffer in `play.js`, a distinct highlight for the queued from/to squares, and cancel-on-tap behavior.
+
+**31. Randomize player color vs the bot**  
+Starting a bot game currently always makes the player White (`playerColor` defaults to `"w"`). Randomly assign White/Black at game start (and have the bot open when the player is Black). Touches the bot-game launch path in `home.js` / `initPlay`.
+
+**32. Clearer last-move indicator**  
+A faint last-move tint exists (`Board.applyLastTint` / `.sq-last`), but it's hard to see (especially in the monochrome theme). Make it clearly mark both the piece that just moved and the square it came from (e.g. stronger highlight on both from/to squares, or a marker on the moved piece).
+
+**33. Captured-pieces tray**  
+Add an in-game UI element showing the pieces each side has captured so far (and ideally a material-difference indicator). Derive it from the move history / board diff; show it near each player's clock row.
+
+**34. Move/capture/check sounds**  
+Add short sound effects for a normal move, a capture, and check (and likely castle / game-end). Bundle small audio assets (precached in `sw.js`), respect a mute toggle in Settings, and unlock audio on first user interaction (iOS requirement).
+
+### Bot game rules
+
+**35. Remove the Draw option vs the bot**  
+Remove the "Draw" action entirely in bot mode (the engine never agrees, and it currently grants an instant unconditional draw). Supersedes #22 — rather than gating the claim, just drop the button when `_mode === "bot"`.
+
+**36. "New Game" mid-game vs the bot should count as a resignation**  
+Starting a new game (or "Play Again" before the current game ends) while a bot game is in progress currently abandons the game with no result. It should be recorded as a loss/resignation (Elo + game history) before the new game starts.
