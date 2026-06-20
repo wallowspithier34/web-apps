@@ -17,6 +17,46 @@ The app consolidates three separate activities into one:
 - **Pass & Play** — two humans on one screen
 - **vs Bot** — play against Stockfish at calibrated difficulty
 
+It shares its spaced-repetition progress (the `chess-openings-trainer:v2` localStorage key) with the older standalone `apps/chess-openings/` app, which still exists separately (its removal is tracked as Known Issue #1).
+
+---
+
+## Architecture & File Map
+
+Everything is plain `<script>` files loaded in dependency order by `index.html`; there is no module system, bundler, or build step. Modules communicate through globals hung on `window`. There is exactly one HTML page; "screens" are sibling `<div class="screen">` blocks toggled by `showScreen(id)`.
+
+### Source files (load order matters — later files depend on earlier globals)
+
+| # | File | Lines | Responsibility | Key globals it defines |
+|---|------|------:|----------------|------------------------|
+| 1 | `chess.js` | ~335 | Self-contained rules engine (move gen, legality, SAN, FEN load) | `Chess`, `idxToName`, `nameToIdx` |
+| 2 | `openings.js` | ~425 | Opening dataset (32 entries) | `OPENINGS` |
+| 3 | `srs.js` | ~347 | Position graph + SM-2 spaced repetition `Store` | `Store`, `POSITIONS`, `POSITION_BY_KEY`, `OPENING_CARDS`, `OPENING_LINE`, `srsTodayStr` |
+| 4 | `board.js` | ~287 | Board rendering, piece styles, animation, highlights | `Board`, `IMG_SETS` |
+| 5 | `elo.js` | ~74 | `EloStore` rating + skill/movetime tables | `EloStore`, `SKILL_ELO` |
+| 6 | `timer.js` | ~135 | `ChessClock` + timer presets | `ChessClock`, `TIMER_PRESETS`, `NO_TIMER_IDX` |
+| 7 | `bot.js` | ~105 | `BotEngine` — Stockfish Web Worker UCI wrapper | `BotEngine` |
+| 8 | `opening-detect.js` | ~35 | Detect opening name(s) from a UCI move list | `detectOpening` |
+| 9 | `export.js` | ~134 | Markdown export + save-file import | `downloadMarkdown`, `importProgressFromText` |
+| 10 | `home.js` | ~299 | App bootstrap, navigation, prefs, settings, home UI | `showScreen`, `showToast`, `getStore`, `getEloStore`, `getPrefs`, `savePrefs`, `refreshHome`, `GAME_KEY`, `BOARD_THEMES`, `PIECE_STYLES` |
+| 11 | `play.js` | ~543 | Play screen (PvP + bot): move flow, clock, persistence, game-over, completed-game history | `initPlay`, `fenFromGame` |
+| 12 | `trainer.js` | ~445 | Trainer dashboard + drill flow + practice/browse screen | `initTrainer`, `initPractice` |
+| 13 | `library.js` | ~65 | Read-only opening reference screen | `initLibrary` |
+| — | `stockfish.js` | — | Vendored **Stockfish.js 18** (chess.com fork, GPLv3), pure-JS, **~10.5 MB**. Loaded as a Web Worker by `bot.js`, never via a `<script>` tag. | — |
+| — | `sw.js` | ~92 | Service worker (cache-first precache) | — |
+
+**Bootstrap:** `home.js`'s `DOMContentLoaded` handler runs `loadPrefs()`, constructs `new Store()` and `new EloStore()`, applies the board theme, calls `refreshHome()`, and wires every home/settings event listener. `play.js`, `trainer.js`, and `library.js` add their own `DOMContentLoaded` listeners for their screens' buttons and expose `initX()` entry points called on navigation.
+
+**Dead code:** `script.js` (~193 lines) is the old standalone pass-and-play controller; it is **not** referenced by `index.html` and not precached — orphaned (tracked as Known Issue #39).
+
+### Global `window` API surface (the cross-module contract)
+- **Engine/board:** `Chess`, `idxToName`, `nameToIdx`, `Board`, `IMG_SETS`
+- **Data/graph:** `OPENINGS`, `POSITIONS`, `POSITION_BY_KEY`, `OPENING_CARDS`, `OPENING_LINE`, `Store`, `srsTodayStr`, `detectOpening`
+- **Play/engine:** `EloStore`, `SKILL_ELO`, `ChessClock`, `TIMER_PRESETS`, `NO_TIMER_IDX`, `BotEngine`, `initPlay`, `fenFromGame`
+- **Trainer/library:** `initTrainer`, `initPractice`, `initLibrary`
+- **App services (home.js):** `showScreen`, `showToast`, `getStore`, `getEloStore`, `getPrefs`, `savePrefs`, `refreshHome`, `GAME_KEY`, `BOARD_THEMES`, `PIECE_STYLES`
+- **Import/export:** `downloadMarkdown`, `importProgressFromText`
+
 ---
 
 ## Screens & Navigation
@@ -38,11 +78,11 @@ Home
 Shows the user's current Elo rating, daily streak, total XP, and reviews count. Four mode tiles launch each mode. A resume banner appears if a Pass & Play or Bot game is saved mid-game. Bot difficulty and timer preset are configured here before starting a bot game.
 
 ### Settings panel
-Opened from the ⚙ button. Controls:
-- Manual Elo override (100–3000)
-- Piece style (7 options)
-- Board color theme (6 options)
-- Export progress button
+A full-screen overlay (`#settings-panel`, `position: fixed; inset: 0`) opened from the ⚙ button (`openSettings()`); closed with its own ← button. Controls:
+- Manual Elo override (100–3000), edited via an inline Edit → input → Save/Cancel flow
+- Piece style (9 options) — grid of preview tiles
+- Board color theme (6 options) — colour swatches
+- Export Progress (Markdown) and Import Save File buttons
 
 ### Trainer screen
 Entry point for SRS learning. Shows per-opening progress across four tiers. Buttons: Daily Session, Review Weakest, Browse Openings.
@@ -196,7 +236,7 @@ All persistence is `localStorage` only. No server, no sync, no account.
 
 **Import / restore** (`importProgressFromText` in `export.js`, wired to the "Import Save File" button in Settings) — accepts a previously exported `.md` (its ```json appendix is extracted) **or** a raw `.json`. It validates the parsed object contains ≥1 key starting with `chess`, asks for confirmation (the action overwrites all local progress), restores every `chess*` key to localStorage, then reloads so all stores re-initialise. Invalid files are rejected with a toast and no change. Export → Import is a lossless round-trip of all four/five keys above.
 
-**Service worker** — cache-first strategy; all HTML/CSS/JS/SVG assets cached on install under the current key (`chess-v7`), **including `stockfish.js`** so the vs-Bot mode works fully offline. Older caches (`chess-v1`…`chess-v6`) are cleaned up on activation. Bump the cache version whenever cached assets change, or returning users keep the stale copy.
+**Service worker** — cache-first strategy; all HTML/CSS/JS/SVG/PNG assets cached on install under the current key (`chess-v9`), **including `stockfish.js`** so the vs-Bot mode works fully offline. Older caches (`chess-v1`…`chess-v8`) are cleaned up on activation. Bump the cache version whenever cached assets change, or returning users keep the stale copy. (Exact per-key shapes are tabulated under "localStorage — exact shapes" below.)
 
 ---
 
@@ -209,6 +249,139 @@ All persistence is `localStorage` only. No server, no sync, no account.
 - **Animations:** Piece slides via CSS `transform: translate`. Subtle, fast (150–200 ms).
 - **Colors:** Monochrome — neutral grays + white accents (no green/amber in the UI chrome). Functional reds (check, wrong move, low time, loss) are kept for meaning. Board *themes* still offer color options; the default is the grayscale "Mono" theme.
 - **Iconography:** Emoji-based icons for mode tiles and tier badges; SVG for pieces.
+
+---
+
+## Module Reference
+
+### `chess.js` — rules engine
+Pure logic, no DOM. Exposes the `Chess` class plus `idxToName`/`nameToIdx`.
+- **Board model:** `board` is a 64-length array of single chars (uppercase = White, lowercase = Black, `""` = empty). Index = `row*8 + file`; **row 0 = rank 8** (top), file 0 = a-file. Helpers: `fileOf`, `rowOf`, `toIdx(f,r)`, `onBoard`, `colorOf`, `isWhite`, `isBlack`.
+- **State:** `turn` (`"w"|"b"`), `castling` `{K,Q,k,q}` booleans, `ep` (en-passant target index or `null`).
+- **Construction:** `new Chess(fen = START_FEN)` → `load(fen)` parses placement/turn/castling/ep (it ignores the halfmove/fullmove fields).
+- **Move generation:** `_pseudoMoves()` generates all moves for the side to move; `legalMoves()` filters them by making each move on a snapshot and rejecting any that leave the own king attacked (`_apply`/`_undo` with a shallow board snapshot). `legalMovesFrom(name)` filters by origin.
+- **Move object shape:** `{ from, to, piece, captured, promotion?, double?, ep?, castle? }` (indices for from/to). `castle` ∈ `K|Q|k|q`.
+- **Special rules implemented:** castling (with through-/into-check checks via `_attacked`, and empty-square checks including b1/b8 for queenside), en passant (target set on double pawn push; capture removes the pawn on the mover's row), promotion (`_addPromos` adds Q/R/B/N), check detection (`inCheck`/`_attacked` covers pawn/knight/king/sliding attackers). **Not implemented:** threefold repetition, the 50-move rule, insufficient-material draws (see #18).
+- **`move(spec)`** accepts `{from,to,promotion}` as names or indices, finds the matching legal move (defaulting promotion to Q), computes SAN via `toSAN` **before** applying, applies it, and returns `{...move, san, fromName, toName}` or `null` if illegal.
+- **`toSAN(m)`** produces display SAN incl. castling (`O-O`/`O-O-O`), capture `x`, file/rank disambiguation, `=Q` promotion, and `+`/`#` suffixes (computed by applying the move on a snapshot).
+- **`Chess.parseUci("e2e4"|"e7e8q")`** → `{from, to, promotion}` (names).
+- **No `fen()` method exists** — `fenFromGame(game)` in `play.js` generates a FEN for Stockfish (it hardcodes the move counters as `0 1`, see #18).
+
+### `srs.js` — position graph & spaced repetition
+- **`posKey(game)`** — a unique position key: `board-chars + turn + castling + ep`. This is what makes transpositions collapse to one card.
+- **`buildPositionGraph()`** runs once at load over every opening. For each ply where it is the learner's turn (`g.turn === o.color`), it creates/looks-up a node keyed by `posKey`, records the opening's move as a pooled correct **response**, and tracks `tier` (min across hosting openings = most common wins), `depth`, `path` (UCI moves to reach it), and a SAN label. Produces `POSITIONS` (nodes), `POSITION_BY_KEY`, `OPENING_CARDS` (opening id → [posKey…]), `OPENING_LINE` (opening id → [{key, uci}] — the move *this* opening plays at each card).
+- **Node shape:** `{ key, sideToMove, responses: Map<uci,{uci,note,openings:Set}>, openings:Set, tier, depth, path:[], san, rep, lineCount }`.
+- **`Store` (localStorage `chess-openings-trainer:v2`)** — data: `{ version:2, xp, totalReviews, streak:{count,lastDate}, cards:{ [posKey]: cardState } }`. `cardState` = `{ ease:2.5, interval:0, reps:0, due, attempts, correct, started, lastResult, moves:{uci:true} }`.
+- **SM-2 grading (`gradeCard(key, mistakes, uci)`):** quality from mistakes via `qualityFromMistakes` (0→5, 1→4, 2→3, ≥3→2). If quality<3: reps=0, interval=1. Else interval steps 1→6→`round(interval*ease)`. `ease = max(1.3, ease + (0.1 − (5−q)(0.08 + (5−q)·0.02)))`. `due = today + interval`. Records the specific `uci` into `moves`. Returns `{xp, mastery, cardMastered, tier, tierMastery}`.
+- **XP:** base 5, +5 if quality 5, +2 if quality 4, plus tier bonus (`tier===1?0:tier`).
+- **Streak:** `_bumpStreak` increments once/day if yesterday was the last day, else resets to 1; `_rolloverStreak` (on load) zeroes the count if >1 day elapsed.
+- **Strength/mastery math:** `cardStrength = min(1, interval/21)`; `cardProgress = started ? 0.4 + 0.6·strength : 0`; `cardMastered` when `interval ≥ 21`. `tierMastery(tier)` = mean `cardProgress` over that tier's positions ×100. `isTierUnlocked(tier)` requires the previous tier's mastery ≥ `TIER_UNLOCK_MASTERY` (50) **and** all lower tiers unlocked (recursive).
+- **Per-opening (keyed off `OPENING_LINE`):** `openingTotal`, `openingLearned` (responses actually played), `openingMastery` (mean progress over the line's cards), `openingMastered` (all line cards mastered), `openingAccuracy` (Σcorrect/Σattempts over `OPENING_CARDS`, or `null`).
+- **Session building:** `buildSession(maxItems=12, maxNew=4)` = due cards (sorted most-overdue then weakest — `daysBetween` returns b−a, so `daysBetween(today,due)` is negative for overdue → overdue first) + up to 4 unseen cards (tier, then popularity `lineCount`, then depth), falling back to the 6 weakest started cards. `weakestCards(n=6)` for the "Review Weakest" shortcut.
+- **Dates** are day-granular `YYYY-MM-DD` strings via `todayStr`/`addDays`/`daysBetween` (local time, midnight-anchored).
+
+### `board.js` — rendering & interaction (`Board` singleton)
+- **Coordinate system:** each piece is an absolutely-positioned `12.5% × 12.5%` div placed with `transform: translate(col*800%, row*800%)` (800% of 12.5% = one square). Square colour: `(row+file)%2===0 ? sq-light : sq-dark` (computed on the *logical* square, so colours stay correct when flipped).
+- **`buildBoard(container, orientation, onSquareTap)`** builds the 8×8 `.square` grid (each `data-sq="e4"`), file labels on the bottom rank, rank labels on the left file, and a click handler per square. `orientation` `"w"` = White at bottom.
+- **`renderPieces(game, container, style)`** clears and redraws all pieces. **`animateMove(game, uci, style)`** applies the move to the engine, animates the moving piece via transform, removes captured pieces (incl. en-passant pawn), swaps the rook on castling, replaces the glyph on promotion, sets `_lastMove`, and **calls `clearHighlights()` + `applyLastTint()`** (so selection highlights are cleared and the from/to squares get `sq-last` after every move).
+- **Highlight API (CSS classes on squares):** `selectSquare` (`sq-sel` + `sq-legal`/`sq-legal-cap`), `deselect`, `clearHighlights`, `applyLastTint` (`sq-last`), `markCheck` (`sq-check`), `markWrong` (`sq-wrong`, auto-clears 500 ms), `markHints(fromNames)` (`sq-hint`), plus piece-element effects `flashConfirm` (`piece-confirm`) and `shakeWrong` (`piece-shake`).
+- **Piece-style rendering (`_pieceInner`):** `IMG_SETS = ["pixel","cburnett","merida","maestro","shaded","flat"]` render as `<img src="./pieces/<style>/<wb><TYPE>.<ext>">` where `ext = .png` for `PNG_SETS = ["shaded","flat"]`, else `.svg`. `classic` uses Unicode `GLYPH`, `letters` uses a `LETTER` span (`P` included), `modern` uses inline `PIECE_SVG` paths, and the fallback is a `LETTER` text node.
+- **`whenPiecesReady(cb)`** awaits `img.decode()` for all piece images then `requestAnimationFrame` (an iOS-Safari paint safeguard). Note: rAF is throttled in background/headless tabs, which can stall drill setup during automated testing only.
+- **`samplePiece(style,color,type)`** renders a 28 px preview used by the settings grid.
+
+### `play.js` — Pass & Play + vs Bot
+- **State:** `_game, _clock, _bot, _mode ("pvp"|"bot"), _playerColor, _style, _history (UCI[]), _selectedSq, _waiting, _gameOver, _boardEl, _timerPreset`.
+- **`initPlay({mode, playerColor?, resume?})`** sets up the screen, tears down any previous bot/clock, then calls `_resumeGame()` (if `resume`) or `_newGame()`.
+- **Move flow:** `_onSquareTap` handles select/move/re-select (and shows the promotion modal when needed); `_executeMove(from,to,promo)` animates, pushes to `_history`, drives the clock (`start` on move 1, else `switch`), then `_afterMove` (move list, opening hint, turn labels, `_saveGame`, check highlight, `_checkGameOver`); in bot mode it schedules `_doBotMove` after 200 ms.
+- **Bot:** `_initBot(prefs, resume)` creates a `BotEngine`, configures skill from prefs/Elo, and (if it's the bot's turn) plays. `_doBotMove` requests `getBestMove(fen, remainingMs)` and applies the reply.
+- **Persistence:** `_saveGame()` writes `chess-v2:game` `{mode, playerColor, history, timerState:{w,b,presetIdx}|null}` after each move; cleared on game end. `_resumeGame` replays the saved history (bailing to a new game on any illegal move — #20), restores clock ms, and `_setupTimer` restarts the side-to-move's clock when `history.length>0` (so resume is correctly timed).
+- **Game end:** `_endGame(reason, winner)` (`checkmate|stalemate|flag|resign|draw`) updates Elo for bot+auto games, appends a record to the completed-game history, and shows the overlay.
+- **Completed-game history (`chess-v2:games`, `_recordGame`):** array (cap 100) of `{date, mode, playerColor, result, winner, moves (UCI[]), opening, timerPreset, eloDelta}`. No browse UI yet (#14); included in export/import because the key starts with `chess`.
+- **`fenFromGame(game)`** builds a FEN (placement/turn/castling/ep) with `0 1` move counters for Stockfish.
+
+### `elo.js` — `EloStore` (localStorage `chess-v2:elo`)
+- Data `{ elo:1200, history:[] }`; history capped at 50, each `{date, delta, result, opponentElo}`.
+- `updateAfterGame(result, skillLevel)`: opponent Elo from `SKILL_ELO[skillLevel]`, expected score `1/(1+10^((opp−elo)/400))`, `delta = round(32·(result−expected))`, new elo clamped `[100,3000]`.
+- `setElo(n)` clamps `[100,3000]`. `skillLevelFromElo(userElo)` maps Elo→0–20. `movetimeFromSkill(level)`: ≤5→200 ms, ≤10→500, ≤15→1000, else 2000.
+- **`SKILL_ELO` (index = skill 0–20):** `[200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1900,2100,2300,2500,2700]`.
+
+### `timer.js` — `ChessClock` + presets
+- Drift-free: tracks ms per side, computing elapsed from `Date.now()` snapshots; `requestAnimationFrame` loop emits ticks only when the formatted string changes. `start(color)`, `switch(movedColor)` (adds increment to mover, starts opponent), `pause`, `reset`, `remaining(color)`, `isExpired`, `onTick(cb)`, `onFlag(cb)`. `ChessClock.format(ms)` → `M:SS`, or `M:SS.d` under 10 s.
+- **`TIMER_PRESETS` (index → {label, seconds, increment}):** `1+0` (60/0), `2+1` (120/1), `3+2` (180/2), `5+0` (300/0), `10+0` (600/0), `15+10` (900/10), `30+0` (1800/0), `None` (0/0). `NO_TIMER_IDX = 7` (default).
+
+### `bot.js` — `BotEngine` (Stockfish UCI over a Web Worker)
+- `init(mode, skillOrElo)` spawns `new Worker("./stockfish.js")`, runs the UCI handshake (`uci`→`uciok`→configure→`isready`→`readyok`), and resolves. `_configure` sets `Threads 1`, `Hash 16`, and `Skill Level` (from Elo in auto mode, else the manual level).
+- `getBestMove(fen, remainingMs)`: movetime = `min(5% of remaining, 3000 ms)` with a clock, else `movetimeFromSkill`. Resolves with the `bestmove` UCI (or `null` for `(none)`).
+- `quit()` terminates the worker. `skillLevel` getter reports the active level.
+
+### `opening-detect.js`, `export.js`, `openings.js`
+- **`opening-detect.js`:** builds a prefix index (UCI-prefix → set of opening ids) once; `detectOpening(uciArray)` returns 1–3 opening names, or `[]` when there's no match or >3 candidates (still in shared early theory).
+- **`export.js`:** `downloadMarkdown(store, eloStore, prefs)` writes `chess-progress-YYYY-MM-DD.md` (Elo/bot history, trainer stats, per-opening progress table, settings, and a fenced `json` appendix of **every** `chess*` localStorage key). `importProgressFromText(text)` parses raw JSON or extracts the fenced block, validates ≥1 `chess*` key, `confirm()`s, restores the keys, and reloads.
+- **`openings.js`:** `OPENINGS` — **32** entries. Each: `{ id, name, eco, tier (1–4), color ("w"|"b" — the side the learner plays), idea, moves:[{uci, note}] }`. The mainline is authored as the full sequence; `srs.js` derives the learner's cards from the plies where `turn === color`.
+
+### `trainer.js` & `library.js`
+- **`trainer.js`** controls three screens: the **trainer dashboard** (`initTrainer` → stats + four collapsible tier sections of opening cards, with the mastery-ring legend and `_masteryLabel` New/Learning/Familiar/Strong/Mastered thresholds 0/1/40/80/100), the **drill** (`_startDrillSession`/`_loadDrillCard`/`_onDrillTap`/`_attemptDrillMove`/`_completeDrillCard`/`_showCompletionOverlay`/`_advanceDrill`; tracks `_drillSession`, `_drillIdx`, `_drillMistakes`, `_drillKey`, `_drillGame`, `_drillWaiting`; hint after 3 wrong via `Board.markHints`), and the **practice/browse** screen (`initPractice` with tier/colour chip filters). Drill correctness pools all `node.responses`.
+- **`library.js`** (`initLibrary`) renders every opening as an expandable row with its idea, the user's mastery/learned/accuracy, a lock notice, and the full SAN mainline with per-ply notes.
+
+---
+
+## Constants & Tunables (quick reference)
+
+| Constant | File | Value | Meaning |
+|----------|------|-------|---------|
+| `TIER_UNLOCK_MASTERY` | srs.js | 50 | % mastery of a tier to unlock the next |
+| `STRENGTH_FULL_INTERVAL` | srs.js | 21 | interval (days) counted as fully known |
+| default `ease` | srs.js | 2.5 | SM-2 starting ease (floor 1.3) |
+| session size / new cap | srs.js | 12 / 4 | `buildSession` limits |
+| `DEFAULT_ELO` | elo.js | 1200 | starting/elo-reset value |
+| Elo K-factor | elo.js | 32 | rating volatility |
+| Elo clamp | elo.js | 100–3000 | min/max rating |
+| history caps | elo.js / play.js | 50 / 100 | bot-game Elo history / saved games |
+| `NO_TIMER_IDX` | timer.js | 7 | default = no clock |
+| bot movetime (clock) | bot.js | 5% rem, max 3000 ms | per-move budget |
+| bot `Hash`/`Threads` | bot.js | 16 MB / 1 | engine options |
+| SW cache | sw.js | `chess-v9` | current precache key |
+
+---
+
+## localStorage — exact shapes
+
+All state is `localStorage`, namespaced. Stores read on construction; **import = overwrite keys + reload**. (See "Data & Persistence" above for the export/import contract and SW behaviour.)
+
+| Key | Writer | Shape |
+|-----|--------|-------|
+| `chess-openings-trainer:v2` | `Store` (srs.js) | `{version:2, xp, totalReviews, streak:{count,lastDate}, cards:{[posKey]:{ease,interval,reps,due,attempts,correct,started,lastResult,moves:{uci:true}}}}` |
+| `chess-v2:elo` | `EloStore` (elo.js) | `{elo, history:[{date,delta,result,opponentElo}]}` (≤50) |
+| `chess-v2:prefs` | home.js | `{pieces, board, timerPreset, botDifficulty:{mode,skillLevel}}` |
+| `chess-v2:game` | play.js | `{mode, playerColor, history:[uci], timerState:{w,b,presetIdx}|null}` (deleted on game end) |
+| `chess-v2:games` | play.js | `[{date,mode,playerColor,result,winner,moves:[uci],opening,timerPreset,eloDelta}]` (≤100) |
+
+`loadPrefs()` migrates `pieces`/`board` from a legacy `chess-openings-prefs` key if present and resets an unknown piece style to the default. The trainer key is intentionally shared with `apps/chess-openings/`. `sw.js`'s `ASSETS` precaches the HTML/CSS, all JS (incl. `stockfish.js`), and every image-set file (`pixel`/`cburnett`/`merida`/`maestro` SVGs; `shaded`/`flat` PNGs).
+
+---
+
+## Rendering & CSS internals
+
+- **Layout:** `#app` is a `max-width:520px`, `100dvh` flex column with `padding-bottom: env(safe-area-inset-bottom)`. Top headers carry `--safe-top` (`max(1.5rem, env(safe-area-inset-top)+.4rem)`) so controls clear the iOS status bar. Board theme is applied via `#app[data-board="…"]` (`applyBoardTheme`).
+- **Design tokens (`:root`, monochrome):** neutrals `--bg #0a0a0a / --bg2 #101010 / --surface #161616 / --surface2 #222 / --border #2a2a2a`; text `--text #e6e6e6 / --text-dim #9a9a9a / --text-faint #555`; accents `--gold #e8e8e8 / --gold-bright #fff / --gold-lo #3a3a3a`; glow `--phosphor #e8e8e8`; pieces `--pw #ececec / --pb #181818 / --pw-edge #444 / --pb-edge #8a8a8a`; status `--sel/--sel-bg/--last-bg/--legal-dot` (whites), `--hint-bg rgba(255,255,255,.28)`, and **functional reds kept**: `--chk-bg`, `--wrong-bg`, low-time blink `#e03030`.
+- **Board theme tokens:** `#app[data-board="<id>"]` overrides `--sq-light`/`--sq-dark`. Swatch colours in `BOARD_THEMES` (home.js) must stay in sync with these.
+- **Square state classes:** `sq-light`/`sq-dark` (base), `sq-sel`, `sq-legal`/`sq-legal-cap`, `sq-last`, `sq-check`, `sq-wrong`, `sq-hint`. Piece effect classes: `piece-moved`, `piece-captured`, `piece-confirm`, `piece-shake`.
+- **Effects:** `.board-wrap` has a radial **vignette** overlay (`::before`) and a slow `flicker` animation (CRT feel); low time triggers `blink-red`; overlays fade via `fade-in`. (The vignette darkens edge squares, so equal-coloured squares can look uneven near the border — relevant to #38.)
+
+---
+
+## Asset pipeline (piece sets)
+
+SVG sets (`pixel`,`cburnett`,`merida`,`maestro`) are vendored from the Lichess project. The two PNG sets were generated locally (one-off Pillow script; the app itself stays vanilla):
+- **`shaded`** — from a 6×2 contact-sheet image: sliced into 12 cells, background flood-keyed to transparent, largest connected component kept, trimmed, downscaled to 160 px. Because the sheet's white pieces are near-white on a gray ground (un-keyable cleanly), the **white pieces are the colour-inverted clean black pieces** (matched, solid).
+- **`flat`** — from a folder of opaque-background PNGs: black pieces background-keyed; **white pieces colour-inverted from black** (the supplied white "no outer outline" set was white-on-white and un-keyable).
+- Both: pawns scaled to ~2/3 of the frame so they read smaller than the back-rank pieces. Sets are a few hundred KB total (vs ~10 MB raw). Raw sources are not kept in the repo.
+
+---
+
+## Verification
+
+No automated tests. Verify changes in the browser preview (`web-apps-home` launch config, `/apps/chess/`): clear the SW/caches and reload after asset/JS changes, exercise the affected screen, check `preview_console_logs` for errors, and screenshot/inspect for visual changes. For offline behaviour, load once (populating the cache) then go offline. Always bump `sw.js` `CACHE` when cached files change.
 
 ---
 
@@ -310,8 +483,8 @@ Auto-save (#6) now persists every finished game to `chess-v2:games` (schema in "
 
 ### Timer / resume
 
-**19. (Med) Resuming a timed game doesn't restart the side-to-move's clock**  
-`_resumeGame` restores `_clock._ms` (`play.js:162-165`) but never calls `_clock.start(_game.turn)`. After a resume the active player's clock is paused, so their first move costs zero time (`switch()` sees `_startedAt === null` → 0 elapsed). Fix: start the clock for the side to move on resume.
+**19. ~~Resuming a timed game doesn't restart the side-to-move's clock~~ — ❌ Not a bug (false positive, retracted 2026-06-20)**  
+A re-read of the code shows `_setupTimer` **does** start the clock on resume: after restoring `_clock._ms`, it calls `_clock.start(_game.turn)` when `_history.length > 0 && !_gameOver` (play.js, ~lines 178–181). The original audit's read window stopped just short of those lines. Resume is correctly timed; nothing to fix.
 
 **20. (Low) Resume replays saved moves without validating them** — ✅ Resolved 2026-06-20  
 ~~`_resumeGame` looped `_game.move(spec)` ignoring the return value, so a corrupt `chess-v2:game` history produced a wrong/partial position.~~ Fixed: the replay loop now checks each move's return and falls back to `_newGame()` if any saved move is rejected.
@@ -385,5 +558,16 @@ The Export Progress button currently appears on both the Home screen (`btn-expor
 
 ### Board rendering
 
-**38. (Bug) Board tiling colors look wrong after a move**  
-After making a move, squares can keep stray highlight tints — the previously selected square stays tinted and the legal-move target squares keep their dot/outline markers. Root cause: `_executeMove` ([play.js:317](apps/chess/play.js:317)) plays the move but never calls `Board.deselect()` / `clearHighlights()`, so the `sq-sel` and `sq-legal`/`sq-legal-cap` classes added by `selectSquare` persist on the board. (Separately, `animateMove` doesn't refresh the intended last-move tint during normal play, so `sq-last` may not track the latest move.) Investigate & fix: clear selection highlights at the end of `_executeMove`, and update the last-move tint via `Board.setLastMove(...)` + `applyLastTint()` so only the from/to of the latest move are highlighted.
+**38. (Bug — investigate) Board tiling looks off after moves**  
+User-reported: the board's square shading looks inconsistent after moves. **Correction to the original root-cause guess:** highlights are *not* the problem — `animateMove` already calls `clearHighlights()` + `applyLastTint()` after every move, and a reproduction (e4 e5 Nf3 Nc6) confirms the *only* post-move classes are `sq-last` on the latest from/to squares; base `sq-light`/`sq-dark` parity is correct. The likely visual causes to investigate are therefore presentational, not state: (a) the `.board-wrap` **vignette** overlay (`::before`) plus the slow `flicker` animation darken edge/corner squares, so two same-coloured squares can read as different shades near the border; and (b) in the monochrome theme the `sq-last` tint (white ~12%) is subtle/ambiguous, so the two last-move squares can look like a random colour change rather than a deliberate highlight. Investigate & decide: tone down or disable the vignette/flicker in the monochrome theme, and make the last-move highlight clearer (ties into #32).
+
+### Housekeeping (found during the 2026-06-20 documentation audit)
+
+**39. (Low) Remove dead `script.js`**  
+`apps/chess/script.js` (~193 lines) is the old standalone pass-and-play controller (references `#board`, `#status`, etc.). It is not loaded by `index.html` and not precached by `sw.js` — pure dead weight. Delete it.
+
+**40. (Low) `app.json` accent colour is stale**  
+`app.json` still has `"color": "#c8903a"` (the old amber). After the monochrome redesign (#10) it should be a neutral/black value so the launcher card matches the app.
+
+**41. (Low) `#complete-overlay` lacks the `hidden` attribute**  
+Unlike `#promo-modal` and `#gameover-overlay`, the drill completion overlay (`index.html`) has no initial `hidden` attribute — it relies solely on CSS (`.show` toggling). Harmless today, but inconsistent; add `hidden` (and have the JS toggle it) for parity and safety.
