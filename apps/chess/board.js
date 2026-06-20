@@ -14,7 +14,7 @@ const GLYPH = {
     K:"♚", Q:"♛", R:"♜", B:"♝", N:"♞", P:"♟",
     k:"♚", q:"♛", r:"♜", b:"♝", n:"♞", p:"♟",
 };
-const LETTER = { K:"K", Q:"Q", R:"R", B:"B", N:"N", P:"" };
+const LETTER = { K:"K", Q:"Q", R:"R", B:"B", N:"N", P:"P" };
 
 const PIECE_SVG = {
     P: `<circle cx="22.5" cy="14" r="5.4"/>

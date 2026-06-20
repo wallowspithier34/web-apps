@@ -5,7 +5,7 @@ const PREFS_KEY = "chess-v2:prefs";
 const GAME_KEY  = "chess-v2:game";
 
 const BOARD_THEMES = [
-    { id: "dungeon", label: "Dungeon",  light: "#2a3d2a", dark: "#16231a" },
+    { id: "dungeon", label: "Mono",     light: "#3a3a3a", dark: "#1c1c1c" },
     { id: "amber",   label: "Amber",    light: "#6a4420", dark: "#3a2010" },
     { id: "walnut",  label: "Walnut",   light: "#d9b97a", dark: "#8b5e38" },
     { id: "forest",  label: "Forest",   light: "#d9e8c0", dark: "#5a7a3a" },
@@ -265,6 +265,22 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("st-export").addEventListener("click", () => {
         try { downloadMarkdown(_store, _eloStore, _prefs); }
         catch (e) { showToast("Export failed: " + e.message); }
+    });
+
+    // Import: open the file picker, then restore from the chosen file's text.
+    const importFile = document.getElementById("st-import-file");
+    document.getElementById("st-import").addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", () => {
+        const file = importFile.files && importFile.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try { importProgressFromText(String(reader.result)); }
+            catch (e) { showToast("Import failed: " + e.message); }
+            importFile.value = "";  // allow re-importing the same file
+        };
+        reader.onerror = () => { showToast("Could not read file"); importFile.value = ""; };
+        reader.readAsText(file);
     });
 
 });

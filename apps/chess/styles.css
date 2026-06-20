@@ -2,55 +2,59 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-/* ── Design tokens — retro pixel-art dark (no system dark-mode detection) ── */
+/* ── Design tokens — retro pixel-art, monochrome (no system dark-mode detection) ── */
 :root {
-    --bg:           #0a0c0a;
-    --bg2:          #0d100d;
-    --surface:      #131a13;
-    --surface2:     #1c251c;
-    --border:       #253225;
-    --border-lo:    #1a241a;
+    --bg:           #0a0a0a;
+    --bg2:          #101010;
+    --surface:      #161616;
+    --surface2:     #222222;
+    --border:       #2a2a2a;
+    --border-lo:    #1a1a1a;
 
-    --text:         #c8e0c0;
-    --text-dim:     #7a9a7a;
-    --text-faint:   #374a37;
+    --text:         #e6e6e6;
+    --text-dim:     #9a9a9a;
+    --text-faint:   #555555;
 
-    /* Amber accent for UI chrome (buttons, selections, highlights) */
-    --gold:         #c8903a;
-    --gold-bright:  #e0b060;
-    --gold-lo:      #5a3a10;
+    /* White/grey accent for UI chrome (buttons, selections, highlights) */
+    --gold:         #e8e8e8;
+    --gold-bright:  #ffffff;
+    --gold-lo:      #3a3a3a;
 
-    /* Phosphor green — board glow only */
-    --phosphor:     #22cc44;
-    --phosphor-lo:  #0c2e14;
+    /* Monochrome glow — board glow only */
+    --phosphor:     #e8e8e8;
+    --phosphor-lo:  #2a2a2a;
 
     /* Piece colours */
-    --pw:           #d8e8c0;   /* white piece fill */
-    --pb:           #1c281c;   /* black piece fill */
-    --pw-edge:      #3a4e20;   /* white piece edge/stroke */
-    --pb-edge:      #7aaa60;   /* black piece edge/stroke */
+    --pw:           #ececec;   /* white piece fill */
+    --pb:           #181818;   /* black piece fill */
+    --pw-edge:      #444444;   /* white piece edge/stroke */
+    --pb-edge:      #8a8a8a;   /* black piece edge/stroke (light, for contrast on dark squares) */
 
-    /* Status colours */
-    --sel:          #c8903a;
-    --sel-bg:       rgba(200,144,58,.22);
-    --last-bg:      rgba(200,144,58,.14);
-    --legal-dot:    rgba(200,144,58,.5);
+    /* Status colours — accents monochrome; reds kept as functional warnings */
+    --sel:          #e8e8e8;
+    --sel-bg:       rgba(255,255,255,.18);
+    --last-bg:      rgba(255,255,255,.12);
+    --legal-dot:    rgba(255,255,255,.5);
     --chk-bg:       rgba(200,34,34,.3);
     --wrong-bg:     rgba(200,40,40,.35);
-    --hint-bg:      rgba(34,204,68,.18);
-    --confirm-bg:   rgba(100,255,100,.22);
+    --hint-bg:      rgba(255,255,255,.28);
+    --confirm-bg:   rgba(255,255,255,.3);
 
-    /* Board square colours (dungeon theme, default) */
-    --sq-light:     #2a3d2a;
-    --sq-dark:      #16231a;
+    /* Board square colours (default theme, neutral grey) */
+    --sq-light:     #3a3a3a;
+    --sq-dark:      #1c1c1c;
 
     --mono: "SF Mono", ui-monospace, "Cascadia Code", "Courier New", Courier, monospace;
     --snap: 160ms cubic-bezier(.34,1.15,.64,1);
     --ease: 200ms ease;
+
+    /* Top inset for screen headers — clears the iOS status bar (clock) even on
+       non-notch devices where env(safe-area-inset-top) reports 0. */
+    --safe-top: max(1.5rem, calc(env(safe-area-inset-top) + .4rem));
 }
 
 /* ── Board colour themes ── */
-[data-board="dungeon"] { --sq-light: #2a3d2a; --sq-dark: #16231a; }
+[data-board="dungeon"] { --sq-light: #3a3a3a; --sq-dark: #1c1c1c; }
 [data-board="amber"]   { --sq-light: #6a4420; --sq-dark: #3a2010; }
 [data-board="walnut"]  { --sq-light: #d9b97a; --sq-dark: #8b5e38; }
 [data-board="forest"]  { --sq-light: #d9e8c0; --sq-dark: #5a7a3a; }
@@ -74,7 +78,7 @@ body {
     height: 100dvh;
     display: flex;
     flex-direction: column;
-    padding: env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+    padding: 0 0 env(safe-area-inset-bottom,0);
     position: relative;
     overflow: hidden;
 }
@@ -88,7 +92,7 @@ body {
     display: flex;
     align-items: center;
     gap: .5rem;
-    padding: .55rem 1rem;
+    padding: var(--safe-top) 1rem .55rem;
     border-bottom: 1px solid var(--border);
     background: var(--bg2);
 }
@@ -105,6 +109,8 @@ body {
 .btn-icon {
     background: none; border: none; color: var(--text-dim); cursor: pointer;
     font-size: 1.1rem; padding: .2rem .35rem;
+    min-width: 2.75rem; min-height: 2.75rem;
+    display: inline-flex; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent;
     transition: color var(--ease);
 }
@@ -232,6 +238,12 @@ body {
     font-weight: 900;
     letter-spacing: -.03em;
 }
+/* Distinguish sides on any square colour. A halo shadow (not a text-stroke)
+   keeps the fill colour readable — strokes overwhelm the small glyph and
+   visually invert the colours. */
+.piece.ps-letters .piece-letter { font-size: .82em; }
+.piece.ps-letters.white .piece-letter { color: #fff;     text-shadow: 0 0 1px #000, 0 0 3px #000; }
+.piece.ps-letters.black .piece-letter { color: #181818;  text-shadow: 0 0 1px #fff, 0 0 3px #fff; }
 
 /* ── Piece animations ── */
 .piece-moved    { transition: transform 220ms ease; }
@@ -284,6 +296,7 @@ body {
 .btn.btn-primary { border-color: var(--gold-bright); color: var(--gold-bright); }
 .btn.btn-sm { font-size: .7rem; padding: .4rem .7rem; }
 .btn.btn-wide { width: 100%; }
+.btn.btn-wide + .btn.btn-wide { margin-top: .5rem; }
 .btn.active { background: rgba(200,144,58,.2); color: var(--gold-bright); }
 
 /* ══════════════════════════ Home screen ══════════════════════════ */
@@ -293,7 +306,7 @@ body {
 }
 .home-header {
     flex-shrink: 0;
-    padding: 1rem 1rem .6rem;
+    padding: var(--safe-top) 1rem .6rem;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: .8rem;
 }
@@ -478,10 +491,10 @@ body {
 }
 .promo-choices { display: flex; gap: .5rem; }
 .promo-btn {
-    width: 3.4rem; height: 3.4rem;
+    width: 4.6rem; height: 4.6rem;
     border: 1px solid var(--border);
     background: var(--bg2);
-    color: var(--text); font-family: var(--mono); font-size: 1.5rem; font-weight: 900;
+    color: var(--text); font-family: var(--mono); font-size: 2.6rem; font-weight: 900;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent;
     transition: background var(--ease);
@@ -489,6 +502,15 @@ body {
 .promo-btn.white { color: var(--pw); }
 .promo-btn.black { color: var(--pb); }
 .promo-btn:active { background: var(--sel-bg); border-color: var(--gold); }
+
+/* Scale the sampled piece to fill the larger promotion button */
+.promo-btn .sample-piece {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.6rem;
+}
+.promo-btn .sample-piece svg,
+.promo-btn .sample-piece .piece-img { width: 100%; height: 100%; object-fit: contain; }
 
 /* ── Game-over overlay ── */
 .gameover-overlay {
@@ -585,6 +607,11 @@ body {
 .side-chip.side-w { color: var(--pw); }
 .side-chip.side-b { color: var(--pb-edge); }
 .due-tag { color: var(--gold); font-size: .55rem; }
+.mastery-tag { color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.tier-legend {
+    font-size: .57rem; line-height: 1.4; color: var(--text-dim);
+    padding: 0 .75rem .6rem; margin-top: -.2rem;
+}
 .op-badge { font-size: .75rem; }
 
 /* Mastery ring */
@@ -605,7 +632,7 @@ body {
 .drill-bar {
     flex-shrink: 0;
     display: flex; align-items: center; gap: .5rem;
-    padding: .5rem .75rem;
+    padding: var(--safe-top) .75rem .5rem;
     border-bottom: 1px solid var(--border);
     background: var(--bg2);
 }
@@ -730,7 +757,7 @@ body {
 .settings-bar {
     flex-shrink: 0;
     display: flex; align-items: center; gap: .5rem;
-    padding: .55rem 1rem;
+    padding: var(--safe-top) 1rem .55rem;
     border-bottom: 1px solid var(--border);
     background: var(--bg2);
 }

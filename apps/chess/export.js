@@ -90,4 +90,45 @@ function downloadMarkdown(store, eloStore, prefs) {
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 }
 
+// ── Import / restore ──────────────────────────────────────────────────────────
+// Accepts the text of a previously exported file: either raw JSON, or the
+// Markdown export (whose ```json appendix is extracted). Restores every
+// localStorage key that starts with "chess", then reloads. Returns false (and
+// toasts) on invalid input or if the user cancels the overwrite confirmation.
+function importProgressFromText(text) {
+    let data = null;
+
+    // 1) Try the whole file as JSON; else pull the fenced ```json block (md export).
+    try {
+        data = JSON.parse(text);
+    } catch (_) {
+        const m = text.match(/```json\s*([\s\S]*?)```/);
+        if (m) { try { data = JSON.parse(m[1]); } catch (_) { data = null; } }
+    }
+
+    // 2) Validate: a plain object containing at least one chess* key.
+    const keys = data && typeof data === "object" && !Array.isArray(data)
+        ? Object.keys(data).filter((k) => k.startsWith("chess"))
+        : [];
+    if (!keys.length) {
+        showToast("Not a valid chess save file");
+        return false;
+    }
+
+    // 3) Confirm — this replaces all current progress.
+    if (!confirm("Replace all current progress with this save file? This cannot be undone.")) {
+        return false;
+    }
+
+    // 4) Restore and reload so every store re-initialises from the new data.
+    for (const k of keys) {
+        const v = data[k];
+        localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
+    }
+    showToast("Save imported — reloading…");
+    setTimeout(() => location.reload(), 600);
+    return true;
+}
+
 window.downloadMarkdown = downloadMarkdown;
+window.importProgressFromText = importProgressFromText;

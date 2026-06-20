@@ -34,6 +34,12 @@ function _buildTierSections() {
     const section = document.getElementById("tier-sections");
     section.innerHTML = "";
 
+    // One-line explanation of what the mastery ring means.
+    const legend = document.createElement("p");
+    legend.className = "tier-legend";
+    legend.textContent = "The ring shows how well you recall each opening from memory — it grows as you review and fades over time, so keep it full.";
+    section.appendChild(legend);
+
     for (let tier = 1; tier <= 4; tier++) {
         const openings = OPENINGS.filter((o) => o.tier === tier);
         if (!openings.length) continue;
@@ -70,6 +76,15 @@ function _buildTierSections() {
     }
 }
 
+// Plain-language label for a mastery percentage (0–100).
+function _masteryLabel(pct) {
+    if (pct >= 100) return "Mastered";
+    if (pct >= 80)  return "Strong";
+    if (pct >= 40)  return "Familiar";
+    if (pct >= 1)   return "Learning";
+    return "New";
+}
+
 function _buildOpeningCard(o, store, unlocked) {
     const mastery  = store.openingMastery(o.id);
     const learned  = store.openingLearned(o.id);
@@ -95,12 +110,13 @@ function _buildOpeningCard(o, store, unlocked) {
 
     const side = o.color === "w" ? "W" : "B";
     const sideClass = o.color === "w" ? "side-w" : "side-b";
-    const accStr = accuracy != null ? `${accuracy}% acc` : "";
+    const accStr = accuracy != null ? `${accuracy}% correct` : "";
+    const label  = _masteryLabel(mastery);
 
     card.innerHTML = `
         <div class="pos-info">
             <span class="pos-line">${o.name}</span>
-            <span class="pos-sub">${o.eco} · <span class="side-chip ${sideClass}">${side}</span> · ${learned}/${total}</span>
+            <span class="pos-sub"><span class="mastery-tag">${label}</span> · <span class="side-chip ${sideClass}">${side}</span> · ${learned}/${total} moves</span>
             ${accStr ? `<span class="pos-sub due-tag">${accStr}</span>` : ""}
         </div>
         ${ring}`;
@@ -290,8 +306,15 @@ function _attemptDrillMove(uci, from, to) {
         _drillMistakes++;
         Board.markWrong(to);
         Board.shakeWrong(from);
-        Board.deselect();
-        document.getElementById("move-note").textContent = "Try again";
+        Board.deselect();  // clears highlights — markHints must come after this
+        // After 3 wrong tries, highlight every piece that has a correct response.
+        if (_drillMistakes >= 3) {
+            const froms = [...new Set([...node.responses.keys()].map((u) => u.slice(0, 2)))];
+            Board.markHints(froms);
+            document.getElementById("move-note").textContent = "Hint: move a highlighted piece";
+        } else {
+            document.getElementById("move-note").textContent = "Try again";
+        }
     }
 }
 

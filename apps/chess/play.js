@@ -30,6 +30,22 @@ let _gameOver   = false;
 let _boardEl, _timerPreset;
 let _promoCallback = null;
 
+// ── Completed-game history ─────────────────────────────────────────────────────
+// Every finished game (all modes) is appended here for later browsing/analysis.
+// This key starts with "chess", so it is included in export/import save files.
+const GAMES_KEY = "chess-v2:games";
+const GAMES_MAX = 100;
+
+// Append one completed-game record, keeping only the most recent GAMES_MAX.
+function _recordGame(record) {
+    let games = [];
+    try { games = JSON.parse(localStorage.getItem(GAMES_KEY)) || []; } catch (_) { games = []; }
+    if (!Array.isArray(games)) games = [];
+    games.push(record);
+    if (games.length > GAMES_MAX) games = games.slice(games.length - GAMES_MAX);
+    try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) { /* quota */ }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 function initPlay(config) {
     const prefs = getPrefs();
@@ -99,11 +115,11 @@ function _resumeGame() {
     _history     = saved.history || [];
     _style       = prefs.pieces;
 
-    // Replay moves
+    // Replay moves — bail to a fresh game if the saved history is corrupt
     _game = new Chess();
     for (const uci of _history) {
         const spec = Chess.parseUci(uci);
-        _game.move(spec);
+        if (!_game.move(spec)) { _newGame(); return; }
     }
 
     const orientation = _mode === "bot" ? _playerColor : "w";
@@ -230,9 +246,17 @@ function _doBotMove() {
     const fen = fenFromGame(_game);
 
     _bot.getBestMove(fen, remainingMs).then((uci) => {
-        if (_gameOver || !uci) return;
+        if (_gameOver || !uci) {
+            _waiting = false;
+            if (status) status.classList.remove("bot-thinking");
+            return;
+        }
         const result = Board.animateMove(_game, uci, _style);
-        if (!result) return;
+        if (!result) {
+            _waiting = false;
+            if (status) status.classList.remove("bot-thinking");
+            return;
+        }
         _history.push(uci);
         if (_clock) _clock.switch(_game.turn === "w" ? "b" : "w");
         _afterMove(result, uci);
@@ -357,9 +381,11 @@ function _endGame(reason, winner) {
 
     // Elo update in bot mode (auto difficulty only)
     const goEloDelta = document.getElementById("go-elo-delta");
+    let eloDelta = null;
     if (_mode === "bot" && getPrefs().botDifficulty.mode === "auto" && _bot) {
         const score = winner === _playerColor ? 1 : (winner === null ? 0.5 : 0);
         const { delta } = getEloStore().updateAfterGame(score, _bot.skillLevel);
+        eloDelta = delta;
         goEloDelta.textContent = (delta >= 0 ? "+" : "") + delta + " Elo";
         goEloDelta.className   = "elo-delta " + (delta >= 0 ? "pos" : "neg");
         goEloDelta.hidden      = false;
@@ -367,6 +393,19 @@ function _endGame(reason, winner) {
     } else {
         goEloDelta.hidden = true;
     }
+
+    // Persist the completed game for later browsing/analysis.
+    _recordGame({
+        date: new Date().toISOString(),
+        mode: _mode,
+        playerColor: _playerColor,
+        result: reason,                 // checkmate|stalemate|flag|resign|draw
+        winner,                         // "w" | "b" | null
+        moves: _history.slice(),        // UCI strings — enough to replay/analyze
+        opening: detectOpening(_history).join(" / "),
+        timerPreset: _timerPreset,
+        eloDelta,                       // number for bot+auto games, else null
+    });
 
     document.getElementById("gameover-overlay").hidden = false;
 }
@@ -435,6 +474,9 @@ function _saveGame() {
 // ── Action buttons ────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-play-back").addEventListener("click", () => {
+        // Dismiss any pending promotion picker so it can't stay overlaid on Home
+        document.getElementById("promo-modal").hidden = true;
+        _waiting = false;
         if (_clock) _clock.pause();
         if (_bot) { _bot.quit(); _bot = null; }
         showScreen("screen-home");
@@ -479,8 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (_clock) { _clock.pause(); _clock = null; }
         document.getElementById("gameover-overlay").hidden = true;
         _gameOver = false;
-        _newGame();
-        if (_mode === "bot") _initBot(getPrefs());
+        _newGame();  // _newGame() initializes the bot itself in bot mode
     });
 
     document.getElementById("go-btn-home").addEventListener("click", () => {
@@ -495,8 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (_bot) { _bot.quit(); _bot = null; }
         if (_clock) { _clock.pause(); _clock = null; }
         _gameOver = false;
-        _newGame();
-        if (_mode === "bot") _initBot(getPrefs());
+        _newGame();  // _newGame() initializes the bot itself in bot mode
     });
 });
 

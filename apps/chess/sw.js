@@ -1,5 +1,5 @@
-const CACHE = "chess-v3";
-const OLD_CACHES = ["chess-v1", "chess-v2"];
+const CACHE = "chess-v7";
+const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6"];
 
 const ASSETS = [
     "./",
@@ -14,6 +14,7 @@ const ASSETS = [
     "./elo.js",
     "./timer.js",
     "./bot.js",
+    "./stockfish.js",
     "./opening-detect.js",
     "./export.js",
     "./home.js",
