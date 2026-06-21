@@ -601,3 +601,26 @@ Implementation notes:
 - Generate a start FEN: pick the king's file, fill the other files with random {Q,R,B,N}, mirror to both colors, pawns on ranks 2/7, **castling rights `-`** (king isn't on e1/e8 and the variant has no castling). Regenerate if either king starts in check.
 - `chess.js` `load(fen)` already parses an arbitrary back rank, and castling/`fenFromGame` are fine with rights off — but `initPlay`/`_newGame` currently always start from `new Chess()` (standard position); they'll need a `startFen` option. Gate the Elo update in `_endGame` on the variant flag (mirror how manual difficulty already skips nothing — add an explicit `_variant`/`prefs.botVariant` check). Stockfish needs no special option (it's just an unusual legal position, **not** `UCI_Chess960`).
 - UI: a toggle in the home-screen Bot Settings (next to difficulty/timer), persisted in `chess-v2:prefs`.
+
+### Reported 2026-06-21 (batch)
+
+**43. (Trainer) 1...e5 in response to 1.e4 is marked wrong**  
+*Why (investigated):* the trainer only accepts the **book responses present in the opening dataset** for a given position (`buildPositionGraph` in `srs.js` pools `node.responses` from each opening's move at cards where `g.turn === o.color`). No Black opening in `openings.js` answers 1.e4 with 1...e5 — the e4–e5 openings (Ruy, Italian, Scotch, Vienna, King's Gambit, Danish) are stored as **White** repertoire, so Black's ...e5 there is the opponent's auto-played path move, not a learner response. Thus at the "after 1.e4, Black to move" drill card the accepted replies are c5/c6/e6/d6/g6/d5/Nf6/etc., and 1...e5 is rejected. It's working as designed but very surprising (e5 is the most natural reply). *Fix options:* add an Open-Games Black line (1.e4 e5 …) to `openings.js` so ...e5 is a taught response; and/or make the drill's "wrong" feedback explain it wants the specific repertoire move; and/or show the expected move(s) after repeated misses (already partly covered by the 3-wrong hint, #7).
+
+**44. (Bot) "vs Bot" tile ignores a saved game and starts fresh**  
+The home `tile-bot` handler always calls `initPlay({ mode:"bot", … })` (→ `_newGame()`), so tapping it while a bot game is paused **discards/overwrites** the in-progress game instead of resuming it (only the Resume banner resumes). With #36 in effect this also doesn't count as a resignation — the game just vanishes. Fix: if a saved bot game exists, the tile should resume it (or prompt resume vs. new); a deliberate "new game" should go through the resignation path.
+
+**45. (Bot) "New" button doesn't re-randomize sides**  
+Colour randomization lives only in the `tile-bot` handler (#31). The in-game **New** button and **Play Again** call `_newGame()`, which reuses the existing `_playerColor`, so the player keeps the same colour every new game from within a session. Fix: re-randomize `_playerColor` for bot mode in the `btn-new-game` / `go-btn-again` handlers (or in `_newGame` when `_mode==="bot"`).
+
+**46. Add a full reset / clear-save option in Settings**  
+Add a destructive "Reset all data" action in Settings that clears every `chess*` localStorage key (SRS progress, Elo, prefs, current game, game history) and reloads. Require **two** confirmation/warning steps before wiping (the action is irreversible and there's no cloud backup — suggest pointing the user at Export first).
+
+**47. "Classic" piece set renders much smaller than other sets**  
+The `classic` style draws Unicode glyphs as a text node at the base `.piece` font-size (`board.js` `_pieceInner` → `{ text: GLYPH[char] }`), whereas the image sets fill ~88% of the square (`.piece-img`). Result: classic pieces look noticeably smaller/off-scale. Fix: scale up the classic glyphs (e.g. a larger font-size on `.piece.ps-classic`, comparable to the visual size of the image sets).
+
+**48. Large/XL text size overlaps the in-game UI**  
+The new Text Size control (#27) scales the root font size, which also scales the rem-based play-screen layout (clock rows, move list, action buttons); at Large/XL the in-game UI overflows/overlaps and becomes unreadable. Fix: make the play screen robust to scaling (cap the scale's effect there, scale only text not layout boxes, or switch the affected containers to scroll/clamp). Regression introduced by #27.
+
+**49. Move list should wrap one line per move pair**  
+`_updateMoveList` (`play.js`) renders the whole game as one inline string (`parts.join(" ")` → "1. e4 e5 2. Nf3 Nc6 …"). Format it so each full move (white+black pair) is on its own line (e.g. a row per move number), for readability and easier scanning.
