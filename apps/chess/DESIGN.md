@@ -582,3 +582,17 @@ User-reported: the board's square shading looks inconsistent after moves. **Corr
 
 **41. (Low) `#complete-overlay` lacks the `hidden` attribute**  
 Unlike `#promo-modal` and `#gameover-overlay`, the drill completion overlay (`index.html`) has no initial `hidden` attribute — it relies solely on CSS (`.show` toggling). Harmless today, but inconsistent; add `hidden` (and have the JS toggle it) for parity and safety.
+
+### New modes
+
+**42. Randomized-back-rank bot variant**  
+Add an optional vs-Bot game mode that randomizes the back rank (a "random army" variant). Rules:
+- **Symmetric armies.** The back rank is randomized but **identical for both colors** — for each file, White and Black have the same piece type (mirrored across the board). Pawns stay on the 2nd/7th ranks as normal; only the back rank changes.
+- **Exactly one king per side.** One of the 8 back-rank files holds the king (same file for both colors). Every other file holds a randomly chosen non-king piece — **any number of any piece is allowed** (e.g. multiple queens/rooks/etc.; no standard-army counts and no Chess960 placement constraints).
+- **No Elo effect.** Games in this mode never update the Elo rating (the symmetric army makes it unfair to rate, and it's a novelty mode). Still record them to game history (`chess-v2:games`) tagged with the variant.
+
+Implementation notes:
+- Decide whether pawns are eligible on the back rank — recommend **excluding pawns** (pieces drawn from {Q,R,B,N}); confirm with the user.
+- Generate a start FEN: pick the king's file, fill the other files with random {Q,R,B,N}, mirror to both colors, pawns on ranks 2/7, **castling rights `-`** (king isn't on e1/e8 and the variant has no castling). Regenerate if either king starts in check.
+- `chess.js` `load(fen)` already parses an arbitrary back rank, and castling/`fenFromGame` are fine with rights off — but `initPlay`/`_newGame` currently always start from `new Chess()` (standard position); they'll need a `startFen` option. Gate the Elo update in `_endGame` on the variant flag (mirror how manual difficulty already skips nothing — add an explicit `_variant`/`prefs.botVariant` check). Stockfish needs no special option (it's just an unusual legal position, **not** `UCI_Chess960`).
+- UI: a toggle in the home-screen Bot Settings (next to difficulty/timer), persisted in `chess-v2:prefs`.
