@@ -106,6 +106,7 @@ Shared by Pass & Play and vs Bot. Shows both player clocks, a scrollable move li
 - **Resign requires confirmation.** Tapping Resign once shows "Sure?"; only a second tap within ~5 s resigns — a single mis-tap won't forfeit. (Draw uses the same two-tap pattern in Pass & Play; the Draw button is hidden vs the bot.)
 - Coordinate labels (file letters on the bottom rank, rank numbers on the left file) are rendered light with a dark halo so they read on any square colour.
 - **Move list** shows one line per move pair (`"N. white black"`), newest auto-scrolled into view.
+- **Captured-pieces tray.** Each clock row shows the pieces that side has captured (the opponent's missing pieces, ordered Q→P) plus a `+N` material-advantage badge on the leading side, refreshed every move by `_updateCaptured()`. Black-piece glyphs carry a crisp light outline so they stay legible on the near-black clock row.
 
 ### Library screen
 Read-only browser. Every opening's full move sequence with annotations is visible here. Locked openings (tier not yet unlocked) show a notice but can still be read.
@@ -253,7 +254,7 @@ All persistence is `localStorage` only. No server, no sync, no account.
 
 **Import / restore** (`importProgressFromText` in `export.js`, wired to the "Import Save File" button in Settings) — accepts a previously exported `.md` (its ```json appendix is extracted) **or** a raw `.json`. It validates the parsed object contains ≥1 key starting with `chess`, asks for confirmation (the action overwrites all local progress), restores every `chess*` key to localStorage, then reloads so all stores re-initialise. Invalid files are rejected with a toast and no change. Export → Import is a lossless round-trip of all four/five keys above.
 
-**Service worker** — cache-first strategy; all HTML/CSS/JS/SVG/PNG assets cached on install under the current key (`chess-v14`), **including `stockfish.js`** so the vs-Bot mode works fully offline. Older caches (`chess-v1`…`chess-v13`) are cleaned up on activation. Bump the cache version whenever cached assets change, or returning users keep the stale copy. (Exact per-key shapes are tabulated under "localStorage — exact shapes" below.)
+**Service worker** — cache-first strategy; all HTML/CSS/JS/SVG/PNG assets cached on install under the current key (`chess-v15`), **including `stockfish.js`** so the vs-Bot mode works fully offline. Older caches (`chess-v1`…`chess-v14`) are cleaned up on activation. Bump the cache version whenever cached assets change, or returning users keep the stale copy. (Exact per-key shapes are tabulated under "localStorage — exact shapes" below.)
 
 ---
 
@@ -309,7 +310,8 @@ Pure logic, no DOM. Exposes the `Chess` class plus `idxToName`/`nameToIdx`.
 ### `play.js` — Pass & Play + vs Bot
 - **State:** `_game, _clock, _bot, _mode ("pvp"|"bot"), _playerColor, _style, _history (UCI[]), _selectedSq, _waiting, _gameOver, _boardEl, _timerPreset`.
 - **`initPlay({mode, playerColor?, resume?})`** sets up the screen, tears down any previous bot/clock, then calls `_resumeGame()` (if `resume`) or `_newGame()`.
-- **Move flow:** `_onSquareTap` handles select/move/re-select (and shows the promotion modal when needed); `_executeMove(from,to,promo)` animates, pushes to `_history`, drives the clock (`start` on move 1, else `switch`), then `_afterMove` (move list, opening hint, turn labels, `_saveGame`, check highlight, `_checkGameOver`); in bot mode it schedules `_doBotMove` after 200 ms.
+- **Move flow:** `_onSquareTap` handles select/move/re-select (and shows the promotion modal when needed); `_executeMove(from,to,promo)` animates, pushes to `_history`, drives the clock (`start` on move 1, else `switch`), then `_afterMove` (move list, opening hint, turn labels, **captured tray**, `_saveGame`, check highlight, `_checkGameOver`); in bot mode it schedules `_doBotMove` after 200 ms.
+- **Captured tray:** `_updateCaptured()` reads `_game.board`, counts each side's missing pieces (start-count minus remaining per type), writes the opponent-coloured glyphs into `#top-captured`/`#bottom-captured` (mapped via `Board.getOrientation()` so they follow flips), and adds a `+N` material badge on the leader. Called from `_setupClockDisplay()` and `_afterMove()`.
 - **Bot:** `_initBot(prefs, resume)` creates a `BotEngine`, configures skill from prefs/Elo, and (if it's the bot's turn) plays. `_doBotMove` requests `getBestMove(fen, remainingMs)` and applies the reply.
 - **Persistence:** `_saveGame()` writes `chess-v2:game` `{mode, playerColor, history, timerState:{w,b,presetIdx}|null}` after each move; cleared on game end. `_resumeGame` replays the saved history (bailing to a new game on any illegal move — #20), restores clock ms, and `_setupTimer` restarts the side-to-move's clock when `history.length>0` (so resume is correctly timed).
 - **Game end:** `_endGame(reason, winner)` (`checkmate|stalemate|flag|resign|draw`) updates Elo for bot+auto games, appends a record to the completed-game history, and shows the overlay.
@@ -358,7 +360,7 @@ Pure logic, no DOM. Exposes the `Chess` class plus `idxToName`/`nameToIdx`.
 | `NO_TIMER_IDX` | timer.js | 7 | default = no clock |
 | bot movetime (clock) | bot.js | 5% rem, max 3000 ms | per-move budget |
 | bot `Hash`/`Threads` | bot.js | 16 MB / 1 | engine options |
-| SW cache | sw.js | `chess-v14` | current precache key |
+| SW cache | sw.js | `chess-v15` | current precache key |
 
 ---
 
@@ -381,12 +383,14 @@ All state is `localStorage`, namespaced. Stores read on construction; **import =
 ## Rendering & CSS internals
 
 - **Layout:** `#app` is a `max-width:520px`, `100dvh` flex column with `padding-bottom: env(safe-area-inset-bottom)`. Top headers carry `--safe-top` (`max(1.5rem, env(safe-area-inset-top)+.4rem)`) so controls clear the iOS status bar. Board theme is applied via `#app[data-board="…"]` (`applyBoardTheme`).
+- **Scale-robust board (#48):** `.board` is sized `width: min(100%, calc(100dvh - var(--board-reserve)))` (`--board-reserve: 16rem`) + `margin-inline:auto` + `aspect-ratio:1`, so it takes the smaller of the column width and the viewport height left after the surrounding chrome. Because the reserve is in **rem**, it grows with `--text-scale`, so at Large/XL text the board shrinks to fit instead of pushing the bottom action row off the `overflow:hidden` `#app`. At scale 1 it is width-limited (unchanged). The shared `.board` rule covers both the play and drill screens.
 - **Design tokens (`:root`, monochrome, high-contrast):** neutrals `--bg #000 / --bg2 #0b0b0b / --surface #1a1a1a / --surface2 #262626 / --border #3a3a3a`; text `--text #e6e6e6 / --text-dim #c0c0c0 / --text-faint #8c8c8c` (dim/faint raised for legibility); accents `--gold #e8e8e8 / --gold-bright #fff / --gold-lo #3a3a3a`; glow `--phosphor #e8e8e8`; pieces `--pw #ececec / --pb #181818 / --pw-edge #444 / --pb-edge #8a8a8a`; status `--sel/--sel-bg/--last-bg/--legal-dot` (whites), `--hint-bg rgba(255,255,255,.28)`, and **functional reds kept**: `--chk-bg`, `--wrong-bg`, low-time blink `#e03030`. `--text-scale` (default 1) multiplies the root font size. No amber/green remains in the chrome (legacy `rgba(200,144,58,…)` glows were neutralised to white).
 - **Piece contrast halos:** every piece carries a per-colour halo so it stays legible on any square/surface — black pieces a light halo, white pieces a dark one (raster + `modern` via `drop-shadow`; `classic`/`letters` via `text-shadow`).
 - **Board theme tokens:** `#app[data-board="<id>"]` overrides `--sq-light`/`--sq-dark` **and `--last-edge`** (the last-move border colour, chosen per theme to contrast with that theme's squares). Swatch colours in `BOARD_THEMES` (home.js) must stay in sync with the square colours.
 - **Last-move marker:** `.sq-last` = `--last-bg` fill tint (`rgba(255,255,255,.18)`) + a 2px `--last-edge` outline on both from/to squares. Coordinate labels (`.coord`) are light (`rgba(255,255,255,.85)`) with a dark halo.
 - **Square state classes:** `sq-light`/`sq-dark` (base), `sq-sel`, `sq-legal`/`sq-legal-cap`, `sq-last`, `sq-check`, `sq-wrong`, `sq-hint`. Piece effect classes: `piece-moved`, `piece-captured`, `piece-confirm`, `piece-shake`.
-- **Effects:** `.board-wrap` has a radial **vignette** overlay (`::before`) and a slow `flicker` animation (CRT feel); low time triggers `blink-red`; overlays fade via `fade-in`. (The vignette darkens edge squares, so equal-coloured squares can look uneven near the border — relevant to #38.)
+- **Effects:** `.board-wrap` has a radial **vignette** overlay (`::before`) and a slow `flicker` animation (CRT feel); low time triggers `blink-red`; overlays fade via `fade-in`. The vignette is intentionally **soft** (`radial-gradient(ellipse at center, transparent 72%, rgba(0,0,0,.32) 100%)`) so edge/corner squares are not visibly dimmed relative to equal-coloured centre squares (#38) while a faint CRT edge remains. Strengthening it back toward the old `55%/.65` ramp is a regression of #38.
+- **Captured-pieces tray (#33):** `.captured-tray` (one per clock row) lays out small recoloured Unicode piece glyphs (`.cap-w` light fill + dark outline; `.cap-b` dark fill + **light 4-direction outline** so black captures read on the near-black row) plus a `.captured-adv` `+N` badge. Built by `_updateCaptured()` (play.js) from the board diff. The 4-direction `text-shadow` outline (not a soft glow) is deliberate — a glow washes the tiny dark glyph out to look white.
 
 ---
 
@@ -557,8 +561,15 @@ Allow the player to queue a move while the bot is thinking (`_waiting`), then au
 **32. Clearer last-move indicator** — ✅ Resolved 2026-06-21  
 ~~The last-move tint was too faint in the monochrome theme.~~ Fixed: both the from and to squares now get a stronger fill (`--last-bg` .18) **and** a 2px accent border (`.sq-last` + `--last-edge`) whose colour is defined **per board theme** (amber/cyan/blue/orange/teal etc.) so it's immediately legible against each theme's squares. Canonical behavior under **Play screen → Board feedback**. This also resolves the practical "looks off after moves" part of #38.
 
-**33. Captured-pieces tray**  
-Add an in-game UI element showing the pieces each side has captured so far (and ideally a material-difference indicator). Derive it from the move history / board diff; show it near each player's clock row.
+**33. Captured-pieces tray** — ✅ Resolved 2026-06-21  
+~~No in-game display of captured material.~~ Fixed: each clock row now holds a `.captured-tray`
+(`#top-captured`/`#bottom-captured`) showing the pieces that side has captured (the opponent's
+missing pieces, ordered Q→P) plus a `+N` material-difference badge on the leading side.
+`_updateCaptured()` in `play.js` derives it from the live `_game.board` (start-count minus
+remaining per type) and is called from `_setupClockDisplay()` (init/flip) and `_afterMove()`.
+Glyphs are recoloured filled Unicode pieces with a **crisp 4-direction contrast outline** (light
+edge on the dark/black captures, dark edge on the white ones) so the black captured pieces stay
+legible against the near-black clock row. Canonical behavior under **Play screen → Board feedback**.
 
 **34. Move/capture/check sounds**  
 Add short sound effects for a normal move, a capture, and check (and likely castle / game-end). Bundle small audio assets (precached in `sw.js`), respect a mute toggle in Settings, and unlock audio on first user interaction (iOS requirement).
@@ -578,8 +589,8 @@ Add short sound effects for a normal move, a capture, and check (and likely cast
 
 ### Board rendering
 
-**38. (Bug — investigate) Board tiling looks off after moves**  
-User-reported: the board's square shading looks inconsistent after moves. **Correction to the original root-cause guess:** highlights are *not* the problem — `animateMove` already calls `clearHighlights()` + `applyLastTint()` after every move, and a reproduction (e4 e5 Nf3 Nc6) confirms the *only* post-move classes are `sq-last` on the latest from/to squares; base `sq-light`/`sq-dark` parity is correct. The likely visual causes to investigate are therefore presentational, not state: (a) the `.board-wrap` **vignette** overlay (`::before`) plus the slow `flicker` animation darken edge/corner squares, so two same-coloured squares can read as different shades near the border; and (b) in the monochrome theme the `sq-last` tint (white ~12%) is subtle/ambiguous, so the two last-move squares can look like a random colour change rather than a deliberate highlight. Investigate & decide: tone down or disable the vignette/flicker in the monochrome theme, and make the last-move highlight clearer (ties into #32). **Update 2026-06-21:** the last-move-clarity half is now resolved by #32 (stronger tint + per-theme accent border), which should remove most of the "looks off after moves" perception. The only remaining open question is whether to tone down the `.board-wrap` vignette/flicker — left as-is for now since it's a deliberate retro-CRT aesthetic; revisit only if still bothersome.
+**38. (Bug — investigate) Board tiling looks off after moves** — ✅ Resolved 2026-06-21  
+User-reported: the board's square shading looks inconsistent after moves. **Correction to the original root-cause guess:** highlights are *not* the problem — `animateMove` already calls `clearHighlights()` + `applyLastTint()` after every move, and a reproduction (e4 e5 Nf3 Nc6) confirms the *only* post-move classes are `sq-last` on the latest from/to squares; base `sq-light`/`sq-dark` parity is correct. The likely visual causes to investigate are therefore presentational, not state: (a) the `.board-wrap` **vignette** overlay (`::before`) plus the slow `flicker` animation darken edge/corner squares, so two same-coloured squares can read as different shades near the border; and (b) in the monochrome theme the `sq-last` tint (white ~12%) is subtle/ambiguous, so the two last-move squares can look like a random colour change rather than a deliberate highlight. Investigate & decide: tone down or disable the vignette/flicker in the monochrome theme, and make the last-move highlight clearer (ties into #32). **Update 2026-06-21:** the last-move-clarity half is now resolved by #32 (stronger tint + per-theme accent border), which should remove most of the "looks off after moves" perception. **Resolved 2026-06-21:** the remaining vignette half is now fixed — the `.board-wrap::before` vignette was softened (transparent core widened `55%→72%`, max darkness reduced `rgba(0,0,0,.65)→.32`) so edge/corner squares no longer read as a different shade from equal-coloured centre squares; the tiling reads evenly on the Mono theme while keeping a faint CRT edge. The subtle `flicker` (opacity `.97`) was left as-is (already imperceptible). Verified by screenshot after moves: same-colour corner/centre squares match, last-move highlight (#32) still stands out.
 
 ### Housekeeping (found during the 2026-06-20 documentation audit)
 
@@ -623,8 +634,19 @@ Implementation notes:
 **47. "Classic" piece set renders much smaller than other sets** — ✅ Resolved 2026-06-21  
 ~~Classic glyphs rendered at the base `.piece` font-size, far smaller than the ~88%-fill image sets.~~ Fixed: `.piece.ps-classic` is sized `clamp(1.6rem, 8vw, 3.4rem)` (with a `1.5rem` cap inside the settings preview tile so it doesn't overflow).
 
-**48. Large/XL text size overlaps the in-game UI**  
-The new Text Size control (#27) scales the root font size, which also scales the rem-based play-screen layout (clock rows, move list, action buttons); at Large/XL the in-game UI overflows/overlaps and becomes unreadable. Fix: make the play screen robust to scaling (cap the scale's effect there, scale only text not layout boxes, or switch the affected containers to scroll/clamp). Regression introduced by #27.
+**48. Large/XL text size overlaps the in-game UI** — ✅ Resolved 2026-06-21  
+~~The Text Size control (#27) scales the root font, which scales the whole rem-based layout; on
+the play/drill screens the **width-locked, non-shrinking board** then pushed the bottom row
+(move list + Resign/Draw/New) off the `overflow:hidden` `#app` — "text hidden under the board".~~
+Fixed: the board now sizes to `width: min(100%, calc(100dvh - var(--board-reserve)))`
+(`--board-reserve: 16rem`, in rem so it grows with `--text-scale`) + `margin-inline:auto`, so it
+takes the smaller of the column width and the height left after the chrome and **shrinks to fit**
+instead of overflowing. At scale 1 the board is width-limited and unchanged; at Large/XL the
+move list (already `overflow-y:auto`) absorbs the growth and the action row stays visible. The
+app-wide audit confirmed every other screen scrolls rather than clips at XL (Home/Trainer/
+Library/Practice `overflow-y:auto`; the Settings panel itself scrolls). Verified at scale
+1/1.15/1.3 on a 375×812 viewport (board full-width, actions visible) and on a wider viewport
+(board shrinks to fit). Documented under **Rendering & CSS internals**.
 
 **49. Move list should wrap one line per move pair** — ✅ Resolved 2026-06-21  
 ~~The move list was one inline string.~~ Fixed: `_updateMoveList` now builds one line per full move (`"N. white black"`) joined with `\n` (the `.move-list` already uses `white-space: pre-wrap` + vertical scroll). Canonical behavior under **Play screen → Board feedback**.

@@ -230,6 +230,52 @@ function _setupClockDisplay() {
     const botColor    = orientation === "w" ? "w" : "b";
     document.getElementById("top-side").textContent    = topColor === "w" ? "White" : "Black";
     document.getElementById("bottom-side").textContent = botColor === "w" ? "White" : "Black";
+    _updateCaptured();
+}
+
+// ── Captured-pieces tray (#33) ──────────────────────────────────────────────────
+const _CAP_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+const _CAP_GLYPH = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛" };  // filled glyphs, recoloured via CSS
+const _CAP_START = { p: 8, n: 2, b: 2, r: 2, q: 1 };
+
+// Build the captured-pieces glyph HTML + total value for one capturing side.
+// The captured pieces are the *opponent's* missing pieces, drawn in the opponent's colour.
+function _capturedFor(capturerColor) {
+    const oppColor = capturerColor === "w" ? "b" : "w";
+    const counts = { p: 0, n: 0, b: 0, r: 0, q: 0 };
+    for (const ch of _game.board) {
+        if (!ch) continue;
+        const chColor = ch === ch.toUpperCase() ? "w" : "b";
+        if (chColor !== oppColor) continue;
+        const t = ch.toLowerCase();
+        if (counts[t] != null) counts[t]++;
+    }
+    const glyphClass = oppColor === "w" ? "cap-w" : "cap-b";
+    let html = "", value = 0;
+    for (const t of ["q", "r", "b", "n", "p"]) {
+        const missing = Math.max(0, _CAP_START[t] - counts[t]);
+        for (let i = 0; i < missing; i++) {
+            html += `<span class="${glyphClass}">${_CAP_GLYPH[t]}</span>`;
+            value += _CAP_VALUE[t];
+        }
+    }
+    return { html, value };
+}
+
+// Refresh both trays + the material-advantage badge from the current board.
+function _updateCaptured() {
+    const topEl = document.getElementById("top-captured");
+    const botEl = document.getElementById("bottom-captured");
+    if (!topEl || !botEl || !_game) return;
+    const orientation = Board.getOrientation();
+    const topColor = orientation === "w" ? "b" : "w";
+    const botColor = orientation === "w" ? "w" : "b";
+    const topCap = _capturedFor(topColor);
+    const botCap = _capturedFor(botColor);
+    const adv = topCap.value - botCap.value;  // +ve → top side is ahead
+    const badge = (n) => (n > 0 ? `<span class="captured-adv">+${n}</span>` : "");
+    topEl.innerHTML = topCap.html + badge(adv);
+    botEl.innerHTML = botCap.html + badge(-adv);
 }
 
 function _updateClockDisplay(color, fmt, rem) {
@@ -378,6 +424,7 @@ function _afterMove(result, uci) {
     _updateMoveList();
     _updateOpeningHint();
     _updateTurnLabels();
+    _updateCaptured();
     _saveGame();
 
     if (_game.inCheck()) {

@@ -18,6 +18,11 @@
     /* UI text scale (driven by Settings → Text Size; html font-size multiplier) */
     --text-scale:   1;
 
+    /* Vertical chrome (header + clock + move list + actions) to reserve around the
+       board so it shrinks to fit at larger text sizes (#48). In rem, so it grows with
+       --text-scale and squeezes the board exactly when the surrounding text grows. */
+    --board-reserve: 16rem;
+
     /* White/grey accent for UI chrome (buttons, selections, highlights) */
     --gold:         #e8e8e8;
     --gold-bright:  #ffffff;
@@ -136,7 +141,7 @@ body {
 .board-wrap::before {
     content: '';
     position: absolute; inset: 0;
-    background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.65) 100%);
+    background: radial-gradient(ellipse at center, transparent 72%, rgba(0,0,0,.32) 100%);
     pointer-events: none; z-index: 11;
 }
 
@@ -146,7 +151,10 @@ body {
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows:    repeat(8, 1fr);
     aspect-ratio: 1;
-    width: 100%;
+    /* Take the smaller of the column width and the height left after the chrome, so
+       the board shrinks (instead of pushing the bottom row off-screen) at large text. */
+    width: min(100%, calc(100dvh - var(--board-reserve)));
+    margin-inline: auto;
     position: relative;
     overflow: hidden;
     border: 2px solid var(--phosphor-lo);
@@ -453,6 +461,34 @@ body {
 }
 .clock-row.clock-active .clock-time { color: var(--gold-bright); }
 .clock-time.clock-low  { color: var(--chk-bg); animation: blink-red 1s step-end infinite; }
+
+/* Captured-pieces tray (#33) — glyphs of the opponent pieces this side has taken. */
+.captured-tray {
+    flex: 1 1 auto; min-width: 0;
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 0 .04em;
+    padding: 0 .5rem;
+    font-size: 1.25em; line-height: 1;
+    overflow: hidden;
+}
+/* Crisp contrast outline so the small captured glyphs read as proper dark/light pieces on
+   the near-black clock row (a soft glow washes the tiny dark glyph out to look light, so use
+   a tight 4-direction outline instead): black glyphs keep a dark fill + light edge, white
+   glyphs a light fill + dark edge. */
+.captured-tray .cap-w {
+    color: var(--pw);
+    text-shadow: .5px 0 #000, -.5px 0 #000, 0 .5px #000, 0 -.5px #000;
+}
+.captured-tray .cap-b {
+    color: var(--pb);
+    text-shadow: .5px 0 #fff, -.5px 0 #fff, 0 .5px #fff, 0 -.5px #fff;
+}
+.captured-adv {
+    margin-left: .3em;
+    font-size: .6em; font-weight: 700;
+    color: var(--text-faint);
+    font-family: var(--mono);
+}
 
 @keyframes blink-red {
     0%,100% { color: #e03030; }

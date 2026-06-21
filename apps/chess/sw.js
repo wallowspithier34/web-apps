@@ -1,5 +1,5 @@
-const CACHE = "chess-v14";
-const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6", "chess-v7", "chess-v8", "chess-v9", "chess-v10", "chess-v11", "chess-v12", "chess-v13"];
+const CACHE = "chess-v15";
+const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6", "chess-v7", "chess-v8", "chess-v9", "chess-v10", "chess-v11", "chess-v12", "chess-v13", "chess-v14"];
 
 const ASSETS = [
     "./",
