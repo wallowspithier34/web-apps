@@ -153,7 +153,12 @@ Two human players take turns on one device. Full chess rules are enforced (castl
 
 ### vs Bot Mode
 
-Stockfish 16 runs as a pure-JavaScript Web Worker (no WASM, no SharedArrayBuffer) so it works on standard static hosting and iOS Safari. Communication is via the UCI protocol: `position fen … go movetime …` → `bestmove …`.
+Stockfish.js 18 runs as a pure-JavaScript Web Worker (no WASM, no SharedArrayBuffer) so it works on standard static hosting and iOS Safari. Communication is via the UCI protocol: `position fen … go movetime …` → `bestmove …`.
+
+**Game rules (bot mode)** — canonical intended behavior:
+- **Random colour each game.** Starting a vs-Bot game assigns the player White or Black at random (`Math.random()` in the `tile-bot` handler, `home.js`). When the player is Black the board is oriented Black-at-bottom and the bot (White) makes the opening move.
+- **No draw offer against the bot.** The Draw action is hidden in bot mode (`btn-draw.hidden = (_mode === "bot")`, set in `initPlay`); the engine never "agrees" to a draw, so the only results vs the bot are checkmate, stalemate, flag, or resignation.
+- **Starting a new game mid-game is a resignation.** Tapping **New** while a bot game is in progress (`_mode === "bot" && !_gameOver && _history.length > 0`) calls `_endGame("resign", <bot colour>)` **before** the new game starts — recording a loss in both the Elo rating and the completed-game history (`chess-v2:games`). (This applies only to the in-game New button; the back button keeps the game saved for resume, and "Play Again" only appears after the game has already ended.)
 
 **Difficulty**  
 Stockfish exposes a Skill Level setting (0–20). Two modes:  
@@ -531,8 +536,8 @@ The board coordinate labels (`.coord-rank` / `.coord-file` in `styles.css`) rend
 **30. Pre-move vs the bot**  
 Allow the player to queue a move while the bot is thinking (`_waiting`), then auto-play it (if legal) once the bot replies — like lichess/chess.com pre-moves. Needs a pre-move buffer in `play.js`, a distinct highlight for the queued from/to squares, and cancel-on-tap behavior.
 
-**31. Randomize player color vs the bot**  
-Starting a bot game currently always makes the player White (`playerColor` defaults to `"w"`). Randomly assign White/Black at game start (and have the bot open when the player is Black). Touches the bot-game launch path in `home.js` / `initPlay`.
+**31. Randomize player color vs the bot** — ✅ Resolved 2026-06-21  
+~~Starting a bot game always made the player White.~~ Fixed: the `tile-bot` handler now picks `Math.random() < 0.5 ? "w" : "b"`; `_newGame`/`_initBot` already orient the board and let the bot open when the player is Black. Canonical behavior documented under **vs Bot Mode → Game rules**.
 
 **32. Clearer last-move indicator**  
 A faint last-move tint exists (`Board.applyLastTint` / `.sq-last`), but it's hard to see (especially in the monochrome theme). Make it clearly mark both the piece that just moved and the square it came from (e.g. stronger highlight on both from/to squares, or a marker on the moved piece).
@@ -545,11 +550,11 @@ Add short sound effects for a normal move, a capture, and check (and likely cast
 
 ### Bot game rules
 
-**35. Remove the Draw option vs the bot**  
-Remove the "Draw" action entirely in bot mode (the engine never agrees, and it currently grants an instant unconditional draw). Supersedes #22 — rather than gating the claim, just drop the button when `_mode === "bot"`.
+**35. Remove the Draw option vs the bot** — ✅ Resolved 2026-06-21 (also closes #22)  
+~~The "Draw" button granted an instant unconditional draw vs the bot.~~ Fixed: the Draw button is hidden when `_mode === "bot"` (`initPlay`), and its handler early-returns in bot mode. Canonical behavior documented under **vs Bot Mode → Game rules**.
 
-**36. "New Game" mid-game vs the bot should count as a resignation**  
-Starting a new game (or "Play Again" before the current game ends) while a bot game is in progress currently abandons the game with no result. It should be recorded as a loss/resignation (Elo + game history) before the new game starts.
+**36. "New Game" mid-game vs the bot should count as a resignation** — ✅ Resolved 2026-06-21  
+~~Tapping New mid-bot-game abandoned it with no result.~~ Fixed: the `btn-new-game` handler calls `_endGame("resign", <bot colour>)` first when a bot game is in progress (`_mode === "bot" && !_gameOver && _history.length > 0`), recording an Elo + game-history loss before the new game. Verified: 1200 → 1184 with a `{result:"resign"}` record on abandon. Canonical behavior documented under **vs Bot Mode → Game rules**.
 
 ### UI placement
 

@@ -204,7 +204,8 @@ document.addEventListener("DOMContentLoaded", () => {
         showScreen("screen-play");
     });
     document.getElementById("tile-bot").addEventListener("click", () => {
-        initPlay({ mode: "bot", playerColor: "w" });
+        // Randomly assign the player's colour each new bot game
+        initPlay({ mode: "bot", playerColor: Math.random() < 0.5 ? "w" : "b" });
         showScreen("screen-play");
     });
     document.getElementById("tile-library").addEventListener("click", () => {

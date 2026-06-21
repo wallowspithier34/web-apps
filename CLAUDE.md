@@ -21,4 +21,5 @@
 - After making changes, check if `README.md` needs updating to stay in sync
 - When adding or removing an app, keep `apps/index.json` in sync so the deployed listing doesn't drift
 - Complex apps maintain a `DESIGN.md` — architecture, intended behavior, and a numbered Known-Issues backlog with `file:line` pointers; keep it in sync with changes
+- When you change or add behavior, write it into the `DESIGN.md` intended-operation sections as a canonical statement of how the app works (e.g. "starting a new game vs the bot is a resignation"), not only as a resolved backlog item — the doc should describe current behavior well enough to detect a future regression
 - Verify UI/behavior changes in the running app (browser preview), not just by reading code

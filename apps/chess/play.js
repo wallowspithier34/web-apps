@@ -73,6 +73,8 @@ function initPlay(config) {
         titleEl.textContent = "Pass & Play";
         botStatus.hidden = true;
     }
+    // No draw offer against the bot — the engine never "agrees" to a draw.
+    document.getElementById("btn-draw").hidden = (_mode === "bot");
 
     if (config.resume) {
         _resumeGame();
@@ -498,25 +500,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.getElementById("btn-draw").addEventListener("click", () => {
-        if (_gameOver) return;
-        if (_mode === "bot") {
+        if (_gameOver || _mode === "bot") return;  // no draw offer vs the bot
+        // PvP: second tap accepts
+        const btn = document.getElementById("btn-draw");
+        if (btn.dataset.offered) {
+            delete btn.dataset.offered;
+            btn.textContent = "Draw";
             _endGame("draw", null);
         } else {
-            // PvP: second tap accepts
-            const btn = document.getElementById("btn-draw");
-            if (btn.dataset.offered) {
-                delete btn.dataset.offered;
-                btn.textContent = "Draw";
-                _endGame("draw", null);
-            } else {
-                btn.dataset.offered = "1";
-                btn.textContent = "Accept?";
-                setTimeout(() => { btn.textContent = "Draw"; delete btn.dataset.offered; }, 5000);
-            }
+            btn.dataset.offered = "1";
+            btn.textContent = "Accept?";
+            setTimeout(() => { btn.textContent = "Draw"; delete btn.dataset.offered; }, 5000);
         }
     });
 
     document.getElementById("btn-new-game").addEventListener("click", () => {
+        // Abandoning a bot game in progress counts as a resignation (Elo + history).
+        // Must run before _bot.quit() — _endGame reads _bot.skillLevel for the Elo update.
+        if (_mode === "bot" && !_gameOver && _history.length > 0) {
+            _endGame("resign", _playerColor === "w" ? "b" : "w");
+        }
         if (_bot) { _bot.quit(); _bot = null; }
         if (_clock) { _clock.pause(); _clock = null; }
         document.getElementById("gameover-overlay").hidden = true;
