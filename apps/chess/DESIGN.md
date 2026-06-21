@@ -96,6 +96,11 @@ Filterable list of all openings (by tier and side). Each row shows the opening n
 ### Play screen
 Shared by Pass & Play and vs Bot. Shows both player clocks, a scrollable move list in algebraic notation, and an opening-name hint once a known position is reached. Action buttons: Resign, Draw, New Game.
 
+**Board feedback (canonical):**
+- **Last move is highlighted.** After every move the from and to squares are tinted and outlined with a per-board accent colour (`.sq-last` + `--last-edge`, set per board theme so it stays legible on each), so the move just played is immediately visible.
+- **Resign requires confirmation.** Tapping Resign once shows "Sure?"; only a second tap within ~5 s resigns — a single mis-tap won't forfeit. (Draw uses the same two-tap pattern in Pass & Play; the Draw button is hidden vs the bot.)
+- Coordinate labels (file letters on the bottom rank, rank numbers on the left file) are rendered light with a dark halo so they read on any square colour.
+
 ### Library screen
 Read-only browser. Every opening's full move sequence with annotations is visible here. Locked openings (tier not yet unlocked) show a notice but can still be read.
 
@@ -369,7 +374,8 @@ All state is `localStorage`, namespaced. Stores read on construction; **import =
 
 - **Layout:** `#app` is a `max-width:520px`, `100dvh` flex column with `padding-bottom: env(safe-area-inset-bottom)`. Top headers carry `--safe-top` (`max(1.5rem, env(safe-area-inset-top)+.4rem)`) so controls clear the iOS status bar. Board theme is applied via `#app[data-board="…"]` (`applyBoardTheme`).
 - **Design tokens (`:root`, monochrome):** neutrals `--bg #0a0a0a / --bg2 #101010 / --surface #161616 / --surface2 #222 / --border #2a2a2a`; text `--text #e6e6e6 / --text-dim #9a9a9a / --text-faint #555`; accents `--gold #e8e8e8 / --gold-bright #fff / --gold-lo #3a3a3a`; glow `--phosphor #e8e8e8`; pieces `--pw #ececec / --pb #181818 / --pw-edge #444 / --pb-edge #8a8a8a`; status `--sel/--sel-bg/--last-bg/--legal-dot` (whites), `--hint-bg rgba(255,255,255,.28)`, and **functional reds kept**: `--chk-bg`, `--wrong-bg`, low-time blink `#e03030`.
-- **Board theme tokens:** `#app[data-board="<id>"]` overrides `--sq-light`/`--sq-dark`. Swatch colours in `BOARD_THEMES` (home.js) must stay in sync with these.
+- **Board theme tokens:** `#app[data-board="<id>"]` overrides `--sq-light`/`--sq-dark` **and `--last-edge`** (the last-move border colour, chosen per theme to contrast with that theme's squares). Swatch colours in `BOARD_THEMES` (home.js) must stay in sync with the square colours.
+- **Last-move marker:** `.sq-last` = `--last-bg` fill tint (`rgba(255,255,255,.18)`) + a 2px `--last-edge` outline on both from/to squares. Coordinate labels (`.coord`) are light (`rgba(255,255,255,.85)`) with a dark halo.
 - **Square state classes:** `sq-light`/`sq-dark` (base), `sq-sel`, `sq-legal`/`sq-legal-cap`, `sq-last`, `sq-check`, `sq-wrong`, `sq-hint`. Piece effect classes: `piece-moved`, `piece-captured`, `piece-confirm`, `piece-shake`.
 - **Effects:** `.board-wrap` has a radial **vignette** overlay (`::before`) and a slow `flicker` animation (CRT feel); low time triggers `blink-red`; overlays fade via `fade-in`. (The vignette darkens edge squares, so equal-coloured squares can look uneven near the border — relevant to #38.)
 
@@ -504,8 +510,8 @@ In bot mode `btn-draw` immediately ends the game as a draw (`play.js:491-492`) �
 
 ### Quality-of-life / polish
 
-**23. (Low) Resign has no confirmation**  
-`btn-resign` forfeits on a single tap (`play.js:483-487`); an accidental tap instantly loses the game. Fix: add a confirm step (or a two-tap pattern like the draw offer).
+**23. (Low) Resign has no confirmation** — ✅ Resolved 2026-06-21  
+~~`btn-resign` forfeited on a single tap.~~ Fixed: Resign now uses a two-tap confirm (first tap → "Sure?", reverts after ~5 s; second tap resigns), mirroring the Draw-offer pattern. Canonical behavior under **Play screen → Board feedback**.
 
 **24. (Low) Bot movetime ignores the increment**  
 `getBestMove` uses `min(5% of remaining, 3000ms)` (`bot.js:78`) without accounting for the per-move increment, so in increment time controls the bot can drift toward flagging instead of using its added time.
@@ -528,8 +534,8 @@ Add Settings controls to scale the UI text size (e.g. a few steps from normal �
 **28. Legibility overhaul — darker, higher-contrast UI**  
 Make the whole UI more legible: push backgrounds darker (solid `#000` where possible), and make more UI elements white or white-bordered so controls and panels read clearly. Tighten contrast on dimmed/faint text (`--text-dim`, `--text-faint`) which is currently low-contrast on the dark surfaces. Pairs with #27 (user-adjustable text) and #29.
 
-**29. Rank/file coordinate markers are hard to read**  
-The board coordinate labels (`.coord-rank` / `.coord-file` in `styles.css`) render in `--text-faint` (`#555`) over the board squares and are barely visible. Fix: increase contrast/size, or give them an outline/halo so they read on both light and dark squares.
+**29. Rank/file coordinate markers are hard to read** — ✅ Resolved 2026-06-21  
+~~Labels rendered in `--text-faint` (#555) and were barely visible.~~ Fixed: `.coord` now renders at `rgba(255,255,255,.85)` with a dark `text-shadow` halo and a slightly larger font, legible on every board theme.
 
 ### Gameplay features
 
@@ -539,8 +545,8 @@ Allow the player to queue a move while the bot is thinking (`_waiting`), then au
 **31. Randomize player color vs the bot** — ✅ Resolved 2026-06-21  
 ~~Starting a bot game always made the player White.~~ Fixed: the `tile-bot` handler now picks `Math.random() < 0.5 ? "w" : "b"`; `_newGame`/`_initBot` already orient the board and let the bot open when the player is Black. Canonical behavior documented under **vs Bot Mode → Game rules**.
 
-**32. Clearer last-move indicator**  
-A faint last-move tint exists (`Board.applyLastTint` / `.sq-last`), but it's hard to see (especially in the monochrome theme). Make it clearly mark both the piece that just moved and the square it came from (e.g. stronger highlight on both from/to squares, or a marker on the moved piece).
+**32. Clearer last-move indicator** — ✅ Resolved 2026-06-21  
+~~The last-move tint was too faint in the monochrome theme.~~ Fixed: both the from and to squares now get a stronger fill (`--last-bg` .18) **and** a 2px accent border (`.sq-last` + `--last-edge`) whose colour is defined **per board theme** (amber/cyan/blue/orange/teal etc.) so it's immediately legible against each theme's squares. Canonical behavior under **Play screen → Board feedback**. This also resolves the practical "looks off after moves" part of #38.
 
 **33. Captured-pieces tray**  
 Add an in-game UI element showing the pieces each side has captured so far (and ideally a material-difference indicator). Derive it from the move history / board diff; show it near each player's clock row.
@@ -564,7 +570,7 @@ The Export Progress button currently appears on both the Home screen (`btn-expor
 ### Board rendering
 
 **38. (Bug — investigate) Board tiling looks off after moves**  
-User-reported: the board's square shading looks inconsistent after moves. **Correction to the original root-cause guess:** highlights are *not* the problem — `animateMove` already calls `clearHighlights()` + `applyLastTint()` after every move, and a reproduction (e4 e5 Nf3 Nc6) confirms the *only* post-move classes are `sq-last` on the latest from/to squares; base `sq-light`/`sq-dark` parity is correct. The likely visual causes to investigate are therefore presentational, not state: (a) the `.board-wrap` **vignette** overlay (`::before`) plus the slow `flicker` animation darken edge/corner squares, so two same-coloured squares can read as different shades near the border; and (b) in the monochrome theme the `sq-last` tint (white ~12%) is subtle/ambiguous, so the two last-move squares can look like a random colour change rather than a deliberate highlight. Investigate & decide: tone down or disable the vignette/flicker in the monochrome theme, and make the last-move highlight clearer (ties into #32).
+User-reported: the board's square shading looks inconsistent after moves. **Correction to the original root-cause guess:** highlights are *not* the problem — `animateMove` already calls `clearHighlights()` + `applyLastTint()` after every move, and a reproduction (e4 e5 Nf3 Nc6) confirms the *only* post-move classes are `sq-last` on the latest from/to squares; base `sq-light`/`sq-dark` parity is correct. The likely visual causes to investigate are therefore presentational, not state: (a) the `.board-wrap` **vignette** overlay (`::before`) plus the slow `flicker` animation darken edge/corner squares, so two same-coloured squares can read as different shades near the border; and (b) in the monochrome theme the `sq-last` tint (white ~12%) is subtle/ambiguous, so the two last-move squares can look like a random colour change rather than a deliberate highlight. Investigate & decide: tone down or disable the vignette/flicker in the monochrome theme, and make the last-move highlight clearer (ties into #32). **Update 2026-06-21:** the last-move-clarity half is now resolved by #32 (stronger tint + per-theme accent border), which should remove most of the "looks off after moves" perception. The only remaining open question is whether to tone down the `.board-wrap` vignette/flicker — left as-is for now since it's a deliberate retro-CRT aesthetic; revisit only if still bothersome.
 
 ### Housekeeping (found during the 2026-06-20 documentation audit)
 

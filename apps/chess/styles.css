@@ -33,7 +33,8 @@
     /* Status colours — accents monochrome; reds kept as functional warnings */
     --sel:          #e8e8e8;
     --sel-bg:       rgba(255,255,255,.18);
-    --last-bg:      rgba(255,255,255,.12);
+    --last-bg:      rgba(255,255,255,.18);
+    --last-edge:    #e6a52e;   /* last-move border; overridden per board theme below */
     --legal-dot:    rgba(255,255,255,.5);
     --chk-bg:       rgba(200,34,34,.3);
     --wrong-bg:     rgba(200,40,40,.35);
@@ -54,12 +55,13 @@
 }
 
 /* ── Board colour themes ── */
-[data-board="dungeon"] { --sq-light: #3a3a3a; --sq-dark: #1c1c1c; }
-[data-board="amber"]   { --sq-light: #6a4420; --sq-dark: #3a2010; }
-[data-board="walnut"]  { --sq-light: #d9b97a; --sq-dark: #8b5e38; }
-[data-board="forest"]  { --sq-light: #d9e8c0; --sq-dark: #5a7a3a; }
-[data-board="ocean"]   { --sq-light: #b8d8e8; --sq-dark: #3a5a78; }
-[data-board="slate"]   { --sq-light: #b8b8c8; --sq-dark: #5a5a6a; }
+/* Each theme sets a --last-edge that contrasts with its own squares (last-move border). */
+[data-board="dungeon"] { --sq-light: #3a3a3a; --sq-dark: #1c1c1c; --last-edge: #e6a52e; }
+[data-board="amber"]   { --sq-light: #6a4420; --sq-dark: #3a2010; --last-edge: #4ec3ff; }
+[data-board="walnut"]  { --sq-light: #d9b97a; --sq-dark: #8b5e38; --last-edge: #2f6bff; }
+[data-board="forest"]  { --sq-light: #d9e8c0; --sq-dark: #5a7a3a; --last-edge: #ff7a18; }
+[data-board="ocean"]   { --sq-light: #b8d8e8; --sq-dark: #3a5a78; --last-edge: #ffa31a; }
+[data-board="slate"]   { --sq-light: #b8b8c8; --sq-dark: #5a5a6a; --last-edge: #34d6b8; }
 
 html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
@@ -163,6 +165,8 @@ body {
 .sq-dark  { background: var(--sq-dark); }
 .sq-sel   { background: var(--sel-bg) !important; outline: 1px solid var(--sel); outline-offset: -1px; }
 .sq-last::before  { content:''; position:absolute; inset:0; background: var(--last-bg); pointer-events:none; z-index:1; }
+/* Last-move marker: per-theme accent border on both the from and to squares */
+.sq-last { outline: 2px solid var(--last-edge); outline-offset: -2px; }
 .sq-check { background: var(--chk-bg) !important; }
 .sq-wrong { background: var(--wrong-bg) !important; }
 .sq-hint  { background: var(--hint-bg) !important; }
@@ -182,8 +186,9 @@ body {
 /* ── Coordinate labels ── */
 .coord {
     position: absolute;
-    font-size: .52rem; font-weight: 700;
-    color: var(--text-faint); line-height: 1;
+    font-size: .58rem; font-weight: 700;
+    color: rgba(255,255,255,.85); line-height: 1;
+    text-shadow: 0 0 2px rgba(0,0,0,.9), 0 1px 1px rgba(0,0,0,.7);
     pointer-events: none; z-index: 4;
 }
 .coord-rank { top: 2px; left: 3px; }

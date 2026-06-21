@@ -495,8 +495,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-resign").addEventListener("click", () => {
         if (_gameOver) return;
-        const winner = _game.turn === "w" ? "b" : "w";
-        _endGame("resign", winner);
+        // Two-tap confirm so a mis-tap can't forfeit the game.
+        const btn = document.getElementById("btn-resign");
+        if (btn.dataset.confirm) {
+            delete btn.dataset.confirm;
+            btn.textContent = "Resign";
+            _endGame("resign", _game.turn === "w" ? "b" : "w");
+        } else {
+            btn.dataset.confirm = "1";
+            btn.textContent = "Sure?";
+            setTimeout(() => { btn.textContent = "Resign"; delete btn.dataset.confirm; }, 5000);
+        }
     });
 
     document.getElementById("btn-draw").addEventListener("click", () => {
