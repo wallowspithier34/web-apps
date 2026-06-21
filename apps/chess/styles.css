@@ -249,6 +249,9 @@ body {
 .piece.black .piece-img, .piece.ps-modern.black svg { filter: drop-shadow(0 0 1px rgba(255,255,255,.6)); }
 .piece.ps-classic.white { text-shadow: 0 0 1px #000, 0 0 3px #000; }
 .piece.ps-classic.black { text-shadow: 0 0 1px #fff, 0 0 3px #fff; }
+/* Classic glyphs are a text node — scale them up to match the ~88% fill of image sets */
+.piece.ps-classic { font-size: clamp(1.6rem, 8vw, 3.4rem); }
+.opt-preview .piece.ps-classic { font-size: 1.5rem; }  /* contain in the small settings preview */
 
 /* Letter style */
 .piece-letter {
@@ -321,6 +324,10 @@ body {
 #screen-home {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* Distribute sections down the column so tall screens don't leave a big
+       dead band at the bottom; falls back to natural scroll when content is
+       taller than the viewport (short screens). */
+    justify-content: space-between;
 }
 .home-header {
     flex-shrink: 0;

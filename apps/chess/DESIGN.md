@@ -104,6 +104,7 @@ Shared by Pass & Play and vs Bot. Shows both player clocks, a scrollable move li
 - **Last move is highlighted.** After every move the from and to squares are tinted and outlined with a per-board accent colour (`.sq-last` + `--last-edge`, set per board theme so it stays legible on each), so the move just played is immediately visible.
 - **Resign requires confirmation.** Tapping Resign once shows "Sure?"; only a second tap within ~5 s resigns — a single mis-tap won't forfeit. (Draw uses the same two-tap pattern in Pass & Play; the Draw button is hidden vs the bot.)
 - Coordinate labels (file letters on the bottom rank, rank numbers on the left file) are rendered light with a dark halo so they read on any square colour.
+- **Move list** shows one line per move pair (`"N. white black"`), newest auto-scrolled into view.
 
 ### Library screen
 Read-only browser. Every opening's full move sequence with annotations is visible here. Locked openings (tier not yet unlocked) show a notice but can still be read.
@@ -165,7 +166,7 @@ Two human players take turns on one device. Full chess rules are enforced (castl
 Stockfish.js 18 runs as a pure-JavaScript Web Worker (no WASM, no SharedArrayBuffer) so it works on standard static hosting and iOS Safari. Communication is via the UCI protocol: `position fen … go movetime …` → `bestmove …`.
 
 **Game rules (bot mode)** — canonical intended behavior:
-- **Random colour each game.** Starting a vs-Bot game assigns the player White or Black at random (`Math.random()` in the `tile-bot` handler, `home.js`). When the player is Black the board is oriented Black-at-bottom and the bot (White) makes the opening move.
+- **Random colour each game.** Starting a vs-Bot game assigns the player White or Black at random (`Math.random()` in the `tile-bot` handler, `home.js`), and **the in-game New / Play Again buttons re-randomize the colour too** (so a session doesn't lock you to one side). When the player is Black the board is oriented Black-at-bottom and the bot (White) makes the opening move.
 - **No draw offer against the bot.** The Draw action is hidden in bot mode (`btn-draw.hidden = (_mode === "bot")`, set in `initPlay`); the engine never "agrees" to a draw, so the only results vs the bot are checkmate, stalemate, flag, or resignation.
 - **Starting a new game mid-game is a resignation.** Tapping **New** while a bot game is in progress (`_mode === "bot" && !_gameOver && _history.length > 0`) calls `_endGame("resign", <bot colour>)` **before** the new game starts — recording a loss in both the Elo rating and the completed-game history (`chess-v2:games`). (This applies only to the in-game New button; the back button keeps the game saved for resume, and "Play Again" only appears after the game has already ended.)
 
@@ -610,17 +611,20 @@ Implementation notes:
 **44. (Bot) "vs Bot" tile ignores a saved game and starts fresh**  
 The home `tile-bot` handler always calls `initPlay({ mode:"bot", … })` (→ `_newGame()`), so tapping it while a bot game is paused **discards/overwrites** the in-progress game instead of resuming it (only the Resume banner resumes). With #36 in effect this also doesn't count as a resignation — the game just vanishes. Fix: if a saved bot game exists, the tile should resume it (or prompt resume vs. new); a deliberate "new game" should go through the resignation path.
 
-**45. (Bot) "New" button doesn't re-randomize sides**  
-Colour randomization lives only in the `tile-bot` handler (#31). The in-game **New** button and **Play Again** call `_newGame()`, which reuses the existing `_playerColor`, so the player keeps the same colour every new game from within a session. Fix: re-randomize `_playerColor` for bot mode in the `btn-new-game` / `go-btn-again` handlers (or in `_newGame` when `_mode==="bot"`).
+**45. (Bot) "New" button doesn't re-randomize sides** — ✅ Resolved 2026-06-21  
+~~New/Play Again reused the existing `_playerColor`.~~ Fixed: the `btn-new-game` and `go-btn-again` handlers re-randomize `_playerColor` for bot mode before `_newGame()` (after the resignation step, which still needs the old colour). Canonical behavior under **vs Bot Mode → Game rules**.
 
 **46. Add a full reset / clear-save option in Settings**  
 Add a destructive "Reset all data" action in Settings that clears every `chess*` localStorage key (SRS progress, Elo, prefs, current game, game history) and reloads. Require **two** confirmation/warning steps before wiping (the action is irreversible and there's no cloud backup — suggest pointing the user at Export first).
 
-**47. "Classic" piece set renders much smaller than other sets**  
-The `classic` style draws Unicode glyphs as a text node at the base `.piece` font-size (`board.js` `_pieceInner` → `{ text: GLYPH[char] }`), whereas the image sets fill ~88% of the square (`.piece-img`). Result: classic pieces look noticeably smaller/off-scale. Fix: scale up the classic glyphs (e.g. a larger font-size on `.piece.ps-classic`, comparable to the visual size of the image sets).
+**47. "Classic" piece set renders much smaller than other sets** — ✅ Resolved 2026-06-21  
+~~Classic glyphs rendered at the base `.piece` font-size, far smaller than the ~88%-fill image sets.~~ Fixed: `.piece.ps-classic` is sized `clamp(1.6rem, 8vw, 3.4rem)` (with a `1.5rem` cap inside the settings preview tile so it doesn't overflow).
 
 **48. Large/XL text size overlaps the in-game UI**  
 The new Text Size control (#27) scales the root font size, which also scales the rem-based play-screen layout (clock rows, move list, action buttons); at Large/XL the in-game UI overflows/overlaps and becomes unreadable. Fix: make the play screen robust to scaling (cap the scale's effect there, scale only text not layout boxes, or switch the affected containers to scroll/clamp). Regression introduced by #27.
 
-**49. Move list should wrap one line per move pair**  
-`_updateMoveList` (`play.js`) renders the whole game as one inline string (`parts.join(" ")` → "1. e4 e5 2. Nf3 Nc6 …"). Format it so each full move (white+black pair) is on its own line (e.g. a row per move number), for readability and easier scanning.
+**49. Move list should wrap one line per move pair** — ✅ Resolved 2026-06-21  
+~~The move list was one inline string.~~ Fixed: `_updateMoveList` now builds one line per full move (`"N. white black"`) joined with `\n` (the `.move-list` already uses `white-space: pre-wrap` + vertical scroll). Canonical behavior under **Play screen → Board feedback**.
+
+**50. Excess dead space / forced scrolling on iPhone** — ✅ Resolved 2026-06-21 (device confirmation pending)  
+~~The Home screen left a large unused band at the bottom (content ~671px in an 852px column → ~181px dead space, top-packed), and felt like wasted "safe area".~~ Fixed: `#screen-home` uses `justify-content: space-between`, distributing its sections down the column (header at top, Export anchored at bottom) so there's no dead band on tall screens; it falls back to natural top-aligned scrolling when content exceeds the viewport (verified: short viewports still scroll without clipping the top). The genuine `env(safe-area-inset-*)` clearances (`--safe-top`, `#app` bottom padding) are unchanged. *Note:* verified at desktop mobile-viewports; the desktop preview can't reproduce real iOS safe-area insets, so on-device confirmation is still advisable.

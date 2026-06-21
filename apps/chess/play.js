@@ -438,16 +438,16 @@ function _updateMoveList() {
     const el = document.getElementById("move-list");
     if (!el || !_history.length) { if (el) el.textContent = ""; return; }
 
-    // Rebuild SAN from start for display
+    // Rebuild SAN from start; one line per move pair ("N. white black").
     const g = new Chess();
-    const parts = [];
+    const lines = [];
     for (let i = 0; i < _history.length; i++) {
         const r = g.move(Chess.parseUci(_history[i]));
         if (!r) break;
-        if (i % 2 === 0) parts.push(`${Math.floor(i / 2) + 1}.`);
-        parts.push(r.san);
+        if (i % 2 === 0) lines.push(`${Math.floor(i / 2) + 1}. ${r.san}`);
+        else             lines[lines.length - 1] += ` ${r.san}`;
     }
-    el.textContent = parts.join(" ");
+    el.textContent = lines.join("\n");
     el.scrollTop = el.scrollHeight;
 }
 
@@ -533,6 +533,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (_clock) { _clock.pause(); _clock = null; }
         document.getElementById("gameover-overlay").hidden = true;
         _gameOver = false;
+        if (_mode === "bot") _playerColor = Math.random() < 0.5 ? "w" : "b"; // re-randomize sides
         _newGame();  // _newGame() initializes the bot itself in bot mode
     });
 
@@ -548,6 +549,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (_bot) { _bot.quit(); _bot = null; }
         if (_clock) { _clock.pause(); _clock = null; }
         _gameOver = false;
+        if (_mode === "bot") _playerColor = Math.random() < 0.5 ? "w" : "b"; // re-randomize sides
         _newGame();  // _newGame() initializes the bot itself in bot mode
     });
 });
