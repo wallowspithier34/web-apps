@@ -38,8 +38,8 @@ Everything is plain `<script>` files loaded in dependency order by `index.html`;
 | 7 | `bot.js` | ~105 | `BotEngine` — Stockfish Web Worker UCI wrapper | `BotEngine` |
 | 8 | `opening-detect.js` | ~35 | Detect opening name(s) from a UCI move list | `detectOpening` |
 | 9 | `export.js` | ~134 | Markdown export + save-file import | `downloadMarkdown`, `importProgressFromText` |
-| 10 | `home.js` | ~299 | App bootstrap, navigation, prefs, settings, home UI | `showScreen`, `showToast`, `getStore`, `getEloStore`, `getPrefs`, `savePrefs`, `refreshHome`, `GAME_KEY`, `BOARD_THEMES`, `PIECE_STYLES` |
-| 11 | `play.js` | ~543 | Play screen (PvP + bot): move flow, clock, persistence, game-over, completed-game history | `initPlay`, `fenFromGame` |
+| 10 | `home.js` | ~390 | App bootstrap, navigation, prefs, settings, home UI | `showScreen`, `showToast`, `getStore`, `getEloStore`, `getPrefs`, `savePrefs`, `refreshHome`, `GAME_KEY`, `BOARD_THEMES`, `PIECE_STYLES` |
+| 11 | `play.js` | ~600 | Play screen (PvP + bot): move flow, clock, persistence, game-over, completed-game history | `initPlay`, `fenFromGame`, `resignSavedBotGame` |
 | 12 | `trainer.js` | ~445 | Trainer dashboard + drill flow + practice/browse screen | `initTrainer`, `initPractice` |
 | 13 | `library.js` | ~65 | Read-only opening reference screen | `initLibrary` |
 | — | `stockfish.js` | — | Vendored **Stockfish.js 18** (chess.com fork, GPLv3), pure-JS, **~10.5 MB**. Loaded as a Web Worker by `bot.js`, never via a `<script>` tag. | — |
@@ -52,7 +52,7 @@ Everything is plain `<script>` files loaded in dependency order by `index.html`;
 ### Global `window` API surface (the cross-module contract)
 - **Engine/board:** `Chess`, `idxToName`, `nameToIdx`, `Board`, `IMG_SETS`
 - **Data/graph:** `OPENINGS`, `POSITIONS`, `POSITION_BY_KEY`, `OPENING_CARDS`, `OPENING_LINE`, `Store`, `srsTodayStr`, `detectOpening`
-- **Play/engine:** `EloStore`, `SKILL_ELO`, `ChessClock`, `TIMER_PRESETS`, `NO_TIMER_IDX`, `BotEngine`, `initPlay`, `fenFromGame`
+- **Play/engine:** `EloStore`, `SKILL_ELO`, `ChessClock`, `TIMER_PRESETS`, `NO_TIMER_IDX`, `BotEngine`, `initPlay`, `fenFromGame`, `resignSavedBotGame`
 - **Trainer/library:** `initTrainer`, `initPractice`, `initLibrary`
 - **App services (home.js):** `showScreen`, `showToast`, `getStore`, `getEloStore`, `getPrefs`, `savePrefs`, `refreshHome`, `GAME_KEY`, `BOARD_THEMES`, `PIECE_STYLES`
 - **Import/export:** `downloadMarkdown`, `importProgressFromText`
@@ -75,7 +75,7 @@ Home
 ```
 
 ### Home screen
-Shows the user's current Elo rating, daily streak, total XP, and reviews count. Four mode tiles launch each mode. A resume banner appears if a Pass & Play or Bot game is saved mid-game. Bot difficulty and timer preset are configured here before starting a bot game. The **vs Bot tile resumes a paused bot game** rather than discarding it: if a saved bot game with moves exists, tapping the tile `confirm()`s resume-vs-new (OK → resume, Cancel → fresh randomized-colour game) so an in-progress game is never silently lost. Export lives in Settings only (there is no Home-screen Export button).
+Shows the user's current Elo rating, daily streak, total XP, and reviews count. Four mode tiles launch each mode. A resume banner appears if a Pass & Play or Bot game is saved mid-game. Bot difficulty and timer preset are configured here before starting a bot game. The **vs Bot tile resumes a paused bot game** rather than discarding it: if a saved bot game with moves exists, tapping the tile `confirm()`s resume-vs-new (OK → resume; Cancel → resign the abandoned game via `resignSavedBotGame()`, then start a fresh randomized-colour game) so an in-progress game is never silently lost and can't be escaped without a recorded resignation. Export lives in Settings only (there is no Home-screen Export button).
 
 ### Settings panel
 A full-screen overlay (`#settings-panel`, `position: fixed; inset: 0`) opened from the ⚙ button (`openSettings()`); closed with its own ← button. Controls:
@@ -169,7 +169,7 @@ Stockfish.js 18 runs as a pure-JavaScript Web Worker (no WASM, no SharedArrayBuf
 **Game rules (bot mode)** — canonical intended behavior:
 - **Random colour each game.** Starting a vs-Bot game assigns the player White or Black at random (`Math.random()` in the `tile-bot` handler, `home.js`), and **the in-game New / Play Again buttons re-randomize the colour too** (so a session doesn't lock you to one side). When the player is Black the board is oriented Black-at-bottom and the bot (White) makes the opening move.
 - **No draw offer against the bot.** The Draw action is hidden in bot mode (`btn-draw.hidden = (_mode === "bot")`, set in `initPlay`); the engine never "agrees" to a draw, so the only results vs the bot are checkmate, stalemate, flag, or resignation.
-- **The vs Bot tile resumes a paused game.** Tapping the home **vs Bot** tile while a bot game is saved mid-game prompts to resume it (OK → resume the saved position/colour; Cancel → discard and start a fresh randomized-colour game), instead of silently overwriting it. The Resume banner also resumes.
+- **The vs Bot tile resumes a paused game (or resigns it).** Tapping the home **vs Bot** tile while a bot game is saved mid-game prompts to resume it (OK → resume the saved position/colour; Cancel → the abandoned game counts as a **resignation** — `resignSavedBotGame()` records the Elo loss + game-history entry, mirroring the in-game New button — then a fresh randomized-colour game starts), instead of silently overwriting it. The Resume banner also resumes. `resignSavedBotGame()` (play.js) derives the bot skill from prefs (auto → `EloStore.skillLevelFromElo(elo)`; manual never affects Elo) so it needs no live engine.
 - **Starting a new game mid-game is a resignation.** Tapping **New** while a bot game is in progress (`_mode === "bot" && !_gameOver && _history.length > 0`) calls `_endGame("resign", <bot colour>)` **before** the new game starts — recording a loss in both the Elo rating and the completed-game history (`chess-v2:games`). (This applies only to the in-game New button; the back button keeps the game saved for resume, and "Play Again" only appears after the game has already ended.)
 
 **Difficulty**  
@@ -315,6 +315,7 @@ Pure logic, no DOM. Exposes the `Chess` class plus `idxToName`/`nameToIdx`.
 - **Game end:** `_endGame(reason, winner)` (`checkmate|stalemate|flag|resign|draw`) updates Elo for bot+auto games, appends a record to the completed-game history, and shows the overlay.
 - **Completed-game history (`chess-v2:games`, `_recordGame`):** array (cap 100) of `{date, mode, playerColor, result, winner, moves (UCI[]), opening, timerPreset, eloDelta}`. No browse UI yet (#14); included in export/import because the key starts with `chess`.
 - **`fenFromGame(game)`** builds a FEN (placement/turn/castling/ep) with `0 1` move counters for Stockfish.
+- **`resignSavedBotGame()`** records a resignation loss for a *saved* (not currently-loaded) bot game read from `chess-v2:game` — used when the player abandons a paused bot game from the Home tile by choosing a new game. Mirrors `_endGame`'s Elo+history side-effects without a live engine: skill is re-derived from prefs (auto → `EloStore.skillLevelFromElo(elo)`; manual never updates Elo), the game is appended to `chess-v2:games` as `result:"resign"`, and `chess-v2:game` is cleared. Returns `true` if a resignation was recorded.
 
 ### `elo.js` — `EloStore` (localStorage `chess-v2:elo`)
 - Data `{ elo:1200, history:[] }`; history capped at 50, each `{date, delta, result, opponentElo}`.
@@ -611,7 +612,7 @@ Implementation notes:
 *Why (investigated):* the trainer only accepts the **book responses present in the opening dataset** for a given position (`buildPositionGraph` in `srs.js` pools `node.responses` from each opening's move at cards where `g.turn === o.color`). No Black opening in `openings.js` answers 1.e4 with 1...e5 — the e4–e5 openings (Ruy, Italian, Scotch, Vienna, King's Gambit, Danish) are stored as **White** repertoire, so Black's ...e5 there is the opponent's auto-played path move, not a learner response. Thus at the "after 1.e4, Black to move" drill card the accepted replies are c5/c6/e6/d6/g6/d5/Nf6/etc., and 1...e5 is rejected. It's working as designed but very surprising (e5 is the most natural reply). *Fix options:* add an Open-Games Black line (1.e4 e5 …) to `openings.js` so ...e5 is a taught response; and/or make the drill's "wrong" feedback explain it wants the specific repertoire move; and/or show the expected move(s) after repeated misses (already partly covered by the 3-wrong hint, #7).
 
 **44. (Bot) "vs Bot" tile ignores a saved game and starts fresh** — ✅ Resolved 2026-06-21  
-~~The home `tile-bot` handler always called `initPlay({ mode:"bot", … })` (→ `_newGame()`), silently discarding a paused bot game (only the Resume banner resumed).~~ Fixed: the `tile-bot` handler now reads `chess-v2:game`; if a saved **bot** game with moves exists it `confirm()`s "Resume your bot game in progress? Cancel discards it and starts a new game." — **OK** resumes it (`initPlay({mode:"bot", playerColor: saved.playerColor, resume:true})`), **Cancel** starts a fresh randomized-colour game. With no saved bot game it starts fresh with no prompt. A paused bot game is therefore never silently lost. Canonical behavior under **Home screen** / **vs Bot Mode → Game rules**.
+~~The home `tile-bot` handler always called `initPlay({ mode:"bot", … })` (→ `_newGame()`), silently discarding a paused bot game (only the Resume banner resumed), and with #36 in effect the abandoned game vanished with no result.~~ Fixed: the `tile-bot` handler now reads `chess-v2:game`; if a saved **bot** game with moves exists it `confirm()`s "Resume your bot game in progress? Cancel starts a new game (abandoning this one counts as a resignation)." — **OK** resumes it (`initPlay({mode:"bot", playerColor: saved.playerColor, resume:true})`); **Cancel** calls `resignSavedBotGame()` (records the loss) **then** starts a fresh randomized-colour game. With no saved bot game it starts fresh with no prompt. A paused bot game is therefore never silently lost, and the "escape a loss via Home" loophole is closed. Canonical behavior under **Home screen** / **vs Bot Mode → Game rules**.
 
 **45. (Bot) "New" button doesn't re-randomize sides** — ✅ Resolved 2026-06-21  
 ~~New/Play Again reused the existing `_playerColor`.~~ Fixed: the `btn-new-game` and `go-btn-again` handlers re-randomize `_playerColor` for bot mode before `_newGame()` (after the resignation step, which still needs the old colour). Canonical behavior under **vs Bot Mode → Game rules**.

@@ -46,6 +46,47 @@ function _recordGame(record) {
     try { localStorage.setItem(GAMES_KEY, JSON.stringify(games)); } catch (_) { /* quota */ }
 }
 
+// Resign a *saved* (not currently-loaded) bot game — used when the player abandons
+// a paused bot game from the Home tile by choosing a new game over resuming. Mirrors
+// the Elo+history side-effects of _endGame("resign", …) but works without a live engine
+// or loaded module state: the bot's skill (auto difficulty) is re-derived from prefs the
+// same way _initBot does (EloStore.skillLevelFromElo of the current Elo). Manual difficulty
+// never affects Elo, matching _endGame. Returns true if a resignation was recorded.
+function resignSavedBotGame() {
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(GAME_KEY)); } catch (_) { return false; }
+    if (!saved || saved.mode !== "bot" || !(saved.history || []).length) return false;
+
+    const prefs       = getPrefs();
+    const playerColor = saved.playerColor || "w";
+    const winner      = playerColor === "w" ? "b" : "w";   // the bot wins
+    const moves       = (saved.history || []).slice();
+
+    // Elo update (auto difficulty only — same gate as _endGame).
+    let eloDelta = null;
+    if (prefs.botDifficulty.mode === "auto") {
+        const skill = EloStore.skillLevelFromElo(getEloStore().elo);
+        const { delta } = getEloStore().updateAfterGame(0, skill);  // 0 = player loss
+        eloDelta = delta;
+    }
+
+    _recordGame({
+        date: new Date().toISOString(),
+        mode: "bot",
+        playerColor,
+        result: "resign",
+        winner,
+        moves,
+        opening: detectOpening(moves).join(" / "),
+        timerPreset: (saved.timerState && saved.timerState.presetIdx != null)
+            ? saved.timerState.presetIdx : prefs.timerPreset,
+        eloDelta,
+    });
+
+    localStorage.removeItem(GAME_KEY);
+    return true;
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 function initPlay(config) {
     const prefs = getPrefs();
@@ -555,3 +596,4 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.initPlay = initPlay;
+window.resignSavedBotGame = resignSavedBotGame;

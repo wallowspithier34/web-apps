@@ -277,11 +277,14 @@ document.addEventListener("DOMContentLoaded", () => {
         // If a bot game is paused, offer to resume it rather than silently discarding it.
         const saved = (() => { try { const r = localStorage.getItem(GAME_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } })();
         if (saved && saved.mode === "bot" && (saved.history || []).length > 0) {
-            if (confirm("Resume your bot game in progress?\n\nCancel discards it and starts a new game.")) {
+            if (confirm("Resume your bot game in progress?\n\nCancel starts a new game (abandoning this one counts as a resignation).")) {
                 initPlay({ mode: "bot", playerColor: saved.playerColor || "w", resume: true });
                 showScreen("screen-play");
                 return;
             }
+            // Declined resume → abandoning the saved bot game counts as a resignation
+            // (Elo loss + game-history record), mirroring the in-game New button (#36/#44).
+            resignSavedBotGame();
         }
         // Fresh game — randomly assign the player's colour each time.
         initPlay({ mode: "bot", playerColor: Math.random() < 0.5 ? "w" : "b" });
