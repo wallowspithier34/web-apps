@@ -274,7 +274,16 @@ document.addEventListener("DOMContentLoaded", () => {
         showScreen("screen-play");
     });
     document.getElementById("tile-bot").addEventListener("click", () => {
-        // Randomly assign the player's colour each new bot game
+        // If a bot game is paused, offer to resume it rather than silently discarding it.
+        const saved = (() => { try { const r = localStorage.getItem(GAME_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } })();
+        if (saved && saved.mode === "bot" && (saved.history || []).length > 0) {
+            if (confirm("Resume your bot game in progress?\n\nCancel discards it and starts a new game.")) {
+                initPlay({ mode: "bot", playerColor: saved.playerColor || "w", resume: true });
+                showScreen("screen-play");
+                return;
+            }
+        }
+        // Fresh game — randomly assign the player's colour each time.
         initPlay({ mode: "bot", playerColor: Math.random() < 0.5 ? "w" : "b" });
         showScreen("screen-play");
     });
@@ -288,11 +297,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!saved) return;
         initPlay({ mode: saved.mode, playerColor: saved.playerColor || "w", resume: true });
         showScreen("screen-play");
-    });
-
-    document.getElementById("btn-export").addEventListener("click", () => {
-        try { downloadMarkdown(_store, _eloStore, _prefs); }
-        catch (e) { showToast("Export failed: " + e.message); }
     });
 
     document.getElementById("btn-settings").addEventListener("click", openSettings);
@@ -354,6 +358,21 @@ document.addEventListener("DOMContentLoaded", () => {
         };
         reader.onerror = () => { showToast("Could not read file"); importFile.value = ""; };
         reader.readAsText(file);
+    });
+
+    // Reset all data — wipes every chess* localStorage key behind two confirmations.
+    document.getElementById("st-reset").addEventListener("click", () => {
+        if (!confirm("Reset ALL chess data?\n\nThis erases SRS progress, Elo, settings, the current game, and game history. Export first if you want a backup.")) return;
+        if (!confirm("This cannot be undone. Permanently erase everything?")) return;
+        try {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith("chess")) keys.push(k);
+            }
+            keys.forEach((k) => localStorage.removeItem(k));
+        } catch (_) { /* ignore */ }
+        location.reload();
     });
 
 });

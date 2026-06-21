@@ -84,9 +84,6 @@
                 <div class="radio-row" id="home-timer-radio"></div>
             </div>
         </div>
-        <div style="padding: .5rem .75rem 1rem;">
-            <button class="btn btn-sm btn-wide" id="btn-export">Export Progress</button>
-        </div>
     </div>
 
     <!-- ══════════════════ Play ══════════════════ -->
@@ -262,6 +259,11 @@
                 <button class="btn btn-wide" id="st-export">Export Progress (Markdown)</button>
                 <button class="btn btn-wide" id="st-import">Import Save File</button>
                 <input type="file" id="st-import-file" accept=".md,.json,.txt" hidden>
+            </div>
+
+            <div class="settings-section">
+                <button class="btn btn-wide btn-danger" id="st-reset">Reset All Data</button>
+                <span class="settings-hint">Erases all progress permanently. Export a backup first.</span>
             </div>
 
         </div>

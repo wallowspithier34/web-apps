@@ -75,7 +75,7 @@ Home
 ```
 
 ### Home screen
-Shows the user's current Elo rating, daily streak, total XP, and reviews count. Four mode tiles launch each mode. A resume banner appears if a Pass & Play or Bot game is saved mid-game. Bot difficulty and timer preset are configured here before starting a bot game.
+Shows the user's current Elo rating, daily streak, total XP, and reviews count. Four mode tiles launch each mode. A resume banner appears if a Pass & Play or Bot game is saved mid-game. Bot difficulty and timer preset are configured here before starting a bot game. The **vs Bot tile resumes a paused bot game** rather than discarding it: if a saved bot game with moves exists, tapping the tile `confirm()`s resume-vs-new (OK → resume, Cancel → fresh randomized-colour game) so an in-progress game is never silently lost. Export lives in Settings only (there is no Home-screen Export button).
 
 ### Settings panel
 A full-screen overlay (`#settings-panel`, `position: fixed; inset: 0`) opened from the ⚙ button (`openSettings()`); closed with its own ← button. Controls:
@@ -84,7 +84,8 @@ A full-screen overlay (`#settings-panel`, `position: fixed; inset: 0`) opened fr
 - Board color theme (6 options) — colour swatches
 - **Text Size** (accessibility) — Normal / Large / XL, driving a `--text-scale` root-font multiplier (1 / 1.15 / 1.3) so the whole rem-based UI scales
 - **Text Colour** (accessibility) — Default / White / Amber / Green / Cyan; a non-default choice overrides the `--text`, `--text-dim`, and `--text-faint` tokens (dim/faint at reduced opacity to keep hierarchy). Pieces and accent/structural colours are unaffected.
-- Export Progress (Markdown) and Import Save File buttons
+- Export Progress (Markdown) and Import Save File buttons — **Export lives only here**, not on the Home screen
+- **Reset All Data** (`st-reset`, destructive red `.btn-danger`) — wipes every `chess*` localStorage key behind **two** `confirm()` steps, then reloads so all stores re-initialise to defaults. A caption advises exporting a backup first.
 
 Text Size/Colour persist in prefs (`textScale`, `textColor`) and are reapplied on load by `applyTextPrefs()`.
 
@@ -168,6 +169,7 @@ Stockfish.js 18 runs as a pure-JavaScript Web Worker (no WASM, no SharedArrayBuf
 **Game rules (bot mode)** — canonical intended behavior:
 - **Random colour each game.** Starting a vs-Bot game assigns the player White or Black at random (`Math.random()` in the `tile-bot` handler, `home.js`), and **the in-game New / Play Again buttons re-randomize the colour too** (so a session doesn't lock you to one side). When the player is Black the board is oriented Black-at-bottom and the bot (White) makes the opening move.
 - **No draw offer against the bot.** The Draw action is hidden in bot mode (`btn-draw.hidden = (_mode === "bot")`, set in `initPlay`); the engine never "agrees" to a draw, so the only results vs the bot are checkmate, stalemate, flag, or resignation.
+- **The vs Bot tile resumes a paused game.** Tapping the home **vs Bot** tile while a bot game is saved mid-game prompts to resume it (OK → resume the saved position/colour; Cancel → discard and start a fresh randomized-colour game), instead of silently overwriting it. The Resume banner also resumes.
 - **Starting a new game mid-game is a resignation.** Tapping **New** while a bot game is in progress (`_mode === "bot" && !_gameOver && _history.length > 0`) calls `_endGame("resign", <bot colour>)` **before** the new game starts — recording a loss in both the Elo rating and the completed-game history (`chess-v2:games`). (This applies only to the in-game New button; the back button keeps the game saved for resume, and "Play Again" only appears after the game has already ended.)
 
 **Difficulty**  
@@ -251,7 +253,7 @@ All persistence is `localStorage` only. No server, no sync, no account.
 
 **Import / restore** (`importProgressFromText` in `export.js`, wired to the "Import Save File" button in Settings) — accepts a previously exported `.md` (its ```json appendix is extracted) **or** a raw `.json`. It validates the parsed object contains ≥1 key starting with `chess`, asks for confirmation (the action overwrites all local progress), restores every `chess*` key to localStorage, then reloads so all stores re-initialise. Invalid files are rejected with a toast and no change. Export → Import is a lossless round-trip of all four/five keys above.
 
-**Service worker** — cache-first strategy; all HTML/CSS/JS/SVG/PNG assets cached on install under the current key (`chess-v9`), **including `stockfish.js`** so the vs-Bot mode works fully offline. Older caches (`chess-v1`…`chess-v8`) are cleaned up on activation. Bump the cache version whenever cached assets change, or returning users keep the stale copy. (Exact per-key shapes are tabulated under "localStorage — exact shapes" below.)
+**Service worker** — cache-first strategy; all HTML/CSS/JS/SVG/PNG assets cached on install under the current key (`chess-v14`), **including `stockfish.js`** so the vs-Bot mode works fully offline. Older caches (`chess-v1`…`chess-v13`) are cleaned up on activation. Bump the cache version whenever cached assets change, or returning users keep the stale copy. (Exact per-key shapes are tabulated under "localStorage — exact shapes" below.)
 
 ---
 
@@ -355,7 +357,7 @@ Pure logic, no DOM. Exposes the `Chess` class plus `idxToName`/`nameToIdx`.
 | `NO_TIMER_IDX` | timer.js | 7 | default = no clock |
 | bot movetime (clock) | bot.js | 5% rem, max 3000 ms | per-move budget |
 | bot `Hash`/`Threads` | bot.js | 16 MB / 1 | engine options |
-| SW cache | sw.js | `chess-v9` | current precache key |
+| SW cache | sw.js | `chess-v14` | current precache key |
 
 ---
 
@@ -570,8 +572,8 @@ Add short sound effects for a normal move, a capture, and check (and likely cast
 
 ### UI placement
 
-**37. Move the Export Progress button into the Settings menu only**  
-The Export Progress button currently appears on both the Home screen (`btn-export`, `index.html:88`) and in Settings (`st-export`, alongside Import). Remove the Home-screen copy so export lives only in Settings next to Import, decluttering the home screen and keeping save/restore together.
+**37. Move the Export Progress button into the Settings menu only** — ✅ Resolved 2026-06-21  
+~~The Export Progress button appeared on both the Home screen (`btn-export`) and in Settings (`st-export`).~~ Fixed: the Home-screen copy and its handler were removed; Export now lives only in Settings next to Import (`st-export`/`st-import`), decluttering Home and keeping save/restore together.
 
 ### Board rendering
 
@@ -608,14 +610,14 @@ Implementation notes:
 **43. (Trainer) 1...e5 in response to 1.e4 is marked wrong**  
 *Why (investigated):* the trainer only accepts the **book responses present in the opening dataset** for a given position (`buildPositionGraph` in `srs.js` pools `node.responses` from each opening's move at cards where `g.turn === o.color`). No Black opening in `openings.js` answers 1.e4 with 1...e5 — the e4–e5 openings (Ruy, Italian, Scotch, Vienna, King's Gambit, Danish) are stored as **White** repertoire, so Black's ...e5 there is the opponent's auto-played path move, not a learner response. Thus at the "after 1.e4, Black to move" drill card the accepted replies are c5/c6/e6/d6/g6/d5/Nf6/etc., and 1...e5 is rejected. It's working as designed but very surprising (e5 is the most natural reply). *Fix options:* add an Open-Games Black line (1.e4 e5 …) to `openings.js` so ...e5 is a taught response; and/or make the drill's "wrong" feedback explain it wants the specific repertoire move; and/or show the expected move(s) after repeated misses (already partly covered by the 3-wrong hint, #7).
 
-**44. (Bot) "vs Bot" tile ignores a saved game and starts fresh**  
-The home `tile-bot` handler always calls `initPlay({ mode:"bot", … })` (→ `_newGame()`), so tapping it while a bot game is paused **discards/overwrites** the in-progress game instead of resuming it (only the Resume banner resumes). With #36 in effect this also doesn't count as a resignation — the game just vanishes. Fix: if a saved bot game exists, the tile should resume it (or prompt resume vs. new); a deliberate "new game" should go through the resignation path.
+**44. (Bot) "vs Bot" tile ignores a saved game and starts fresh** — ✅ Resolved 2026-06-21  
+~~The home `tile-bot` handler always called `initPlay({ mode:"bot", … })` (→ `_newGame()`), silently discarding a paused bot game (only the Resume banner resumed).~~ Fixed: the `tile-bot` handler now reads `chess-v2:game`; if a saved **bot** game with moves exists it `confirm()`s "Resume your bot game in progress? Cancel discards it and starts a new game." — **OK** resumes it (`initPlay({mode:"bot", playerColor: saved.playerColor, resume:true})`), **Cancel** starts a fresh randomized-colour game. With no saved bot game it starts fresh with no prompt. A paused bot game is therefore never silently lost. Canonical behavior under **Home screen** / **vs Bot Mode → Game rules**.
 
 **45. (Bot) "New" button doesn't re-randomize sides** — ✅ Resolved 2026-06-21  
 ~~New/Play Again reused the existing `_playerColor`.~~ Fixed: the `btn-new-game` and `go-btn-again` handlers re-randomize `_playerColor` for bot mode before `_newGame()` (after the resignation step, which still needs the old colour). Canonical behavior under **vs Bot Mode → Game rules**.
 
-**46. Add a full reset / clear-save option in Settings**  
-Add a destructive "Reset all data" action in Settings that clears every `chess*` localStorage key (SRS progress, Elo, prefs, current game, game history) and reloads. Require **two** confirmation/warning steps before wiping (the action is irreversible and there's no cloud backup — suggest pointing the user at Export first).
+**46. Add a full reset / clear-save option in Settings** — ✅ Resolved 2026-06-21  
+~~There was no way to wipe local progress.~~ Fixed: a destructive **Reset All Data** button (`st-reset`, `.btn-danger`) sits below Export/Import in Settings, with a "Export a backup first" hint. Its handler requires **two** `confirm()` steps, then removes every `localStorage` key starting with `chess` (SRS progress, Elo, prefs, current game, game history) and `location.reload()`s so all stores re-initialise to defaults. Canonical behavior under **Settings panel**.
 
 **47. "Classic" piece set renders much smaller than other sets** — ✅ Resolved 2026-06-21  
 ~~Classic glyphs rendered at the base `.piece` font-size, far smaller than the ~88%-fill image sets.~~ Fixed: `.piece.ps-classic` is sized `clamp(1.6rem, 8vw, 3.4rem)` (with a `1.5rem` cap inside the settings preview tile so it doesn't overflow).
