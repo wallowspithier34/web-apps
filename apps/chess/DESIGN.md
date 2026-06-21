@@ -82,7 +82,11 @@ A full-screen overlay (`#settings-panel`, `position: fixed; inset: 0`) opened fr
 - Manual Elo override (100–3000), edited via an inline Edit → input → Save/Cancel flow
 - Piece style (9 options) — grid of preview tiles
 - Board color theme (6 options) — colour swatches
+- **Text Size** (accessibility) — Normal / Large / XL, driving a `--text-scale` root-font multiplier (1 / 1.15 / 1.3) so the whole rem-based UI scales
+- **Text Colour** (accessibility) — Default / White / Amber / Green / Cyan; a non-default choice overrides the `--text`, `--text-dim`, and `--text-faint` tokens (dim/faint at reduced opacity to keep hierarchy). Pieces and accent/structural colours are unaffected.
 - Export Progress (Markdown) and Import Save File buttons
+
+Text Size/Colour persist in prefs (`textScale`, `textColor`) and are reapplied on load by `applyTextPrefs()`.
 
 ### Trainer screen
 Entry point for SRS learning. Shows per-opening progress across four tiers. Buttons: Daily Session, Review Weakest, Browse Openings.
@@ -209,7 +213,7 @@ Image-based sets live at `./pieces/[style]/[wb][PIECE].(svg|png)`. The original 
 ### Board color themes (6)
 | ID | Name | Light square | Dark square |
 |----|------|-------------|------------|
-| `dungeon` | Mono (default) | #3a3a3a | #1c1c1c |
+| `dungeon` | Mono (default) | #4a4a4a | #161616 |
 | `amber` | Amber | #6a4420 | #3a2010 |
 | `walnut` | Walnut | #d9b97a | #8b5e38 |
 | `forest` | Forest | #d9e8c0 | #5a7a3a |
@@ -373,7 +377,8 @@ All state is `localStorage`, namespaced. Stores read on construction; **import =
 ## Rendering & CSS internals
 
 - **Layout:** `#app` is a `max-width:520px`, `100dvh` flex column with `padding-bottom: env(safe-area-inset-bottom)`. Top headers carry `--safe-top` (`max(1.5rem, env(safe-area-inset-top)+.4rem)`) so controls clear the iOS status bar. Board theme is applied via `#app[data-board="…"]` (`applyBoardTheme`).
-- **Design tokens (`:root`, monochrome):** neutrals `--bg #0a0a0a / --bg2 #101010 / --surface #161616 / --surface2 #222 / --border #2a2a2a`; text `--text #e6e6e6 / --text-dim #9a9a9a / --text-faint #555`; accents `--gold #e8e8e8 / --gold-bright #fff / --gold-lo #3a3a3a`; glow `--phosphor #e8e8e8`; pieces `--pw #ececec / --pb #181818 / --pw-edge #444 / --pb-edge #8a8a8a`; status `--sel/--sel-bg/--last-bg/--legal-dot` (whites), `--hint-bg rgba(255,255,255,.28)`, and **functional reds kept**: `--chk-bg`, `--wrong-bg`, low-time blink `#e03030`.
+- **Design tokens (`:root`, monochrome, high-contrast):** neutrals `--bg #000 / --bg2 #0b0b0b / --surface #1a1a1a / --surface2 #262626 / --border #3a3a3a`; text `--text #e6e6e6 / --text-dim #c0c0c0 / --text-faint #8c8c8c` (dim/faint raised for legibility); accents `--gold #e8e8e8 / --gold-bright #fff / --gold-lo #3a3a3a`; glow `--phosphor #e8e8e8`; pieces `--pw #ececec / --pb #181818 / --pw-edge #444 / --pb-edge #8a8a8a`; status `--sel/--sel-bg/--last-bg/--legal-dot` (whites), `--hint-bg rgba(255,255,255,.28)`, and **functional reds kept**: `--chk-bg`, `--wrong-bg`, low-time blink `#e03030`. `--text-scale` (default 1) multiplies the root font size. No amber/green remains in the chrome (legacy `rgba(200,144,58,…)` glows were neutralised to white).
+- **Piece contrast halos:** every piece carries a per-colour halo so it stays legible on any square/surface — black pieces a light halo, white pieces a dark one (raster + `modern` via `drop-shadow`; `classic`/`letters` via `text-shadow`).
 - **Board theme tokens:** `#app[data-board="<id>"]` overrides `--sq-light`/`--sq-dark` **and `--last-edge`** (the last-move border colour, chosen per theme to contrast with that theme's squares). Swatch colours in `BOARD_THEMES` (home.js) must stay in sync with the square colours.
 - **Last-move marker:** `.sq-last` = `--last-bg` fill tint (`rgba(255,255,255,.18)`) + a 2px `--last-edge` outline on both from/to squares. Coordinate labels (`.coord`) are light (`rgba(255,255,255,.85)`) with a dark halo.
 - **Square state classes:** `sq-light`/`sq-dark` (base), `sq-sel`, `sq-legal`/`sq-legal-cap`, `sq-last`, `sq-check`, `sq-wrong`, `sq-hint`. Piece effect classes: `piece-moved`, `piece-captured`, `piece-confirm`, `piece-shake`.
@@ -528,11 +533,11 @@ The ~10 MB engine load (`play.js:222`) has no progress indicator, timeout, or ca
 
 ### Accessibility & legibility
 
-**27. Adjustable text size & color in Settings (accessibility)**  
-Add Settings controls to scale the UI text size (e.g. a few steps from normal → large → extra-large) and to choose the text color, persisted in prefs. Should drive a root token (e.g. a `--text-scale` multiplier and a `--text` override) so it applies app-wide. This is the core accessibility request and also the Settings half of #31.
+**27. Adjustable text size & color in Settings (accessibility)** — ✅ Resolved 2026-06-21  
+~~No way to scale or recolour UI text.~~ Fixed: Settings now has **Text Size** (Normal/Large/XL → `--text-scale` root-font multiplier) and **Text Colour** (Default/White/Amber/Green/Cyan → overrides `--text`/`--text-dim`/`--text-faint`), persisted in prefs (`textScale`, `textColor`) and applied by `applyTextPrefs()`. Canonical behavior under **Settings panel**.
 
-**28. Legibility overhaul — darker, higher-contrast UI**  
-Make the whole UI more legible: push backgrounds darker (solid `#000` where possible), and make more UI elements white or white-bordered so controls and panels read clearly. Tighten contrast on dimmed/faint text (`--text-dim`, `--text-faint`) which is currently low-contrast on the dark surfaces. Pairs with #27 (user-adjustable text) and #29.
+**28. Legibility overhaul — darker, higher-contrast UI** — ✅ Resolved 2026-06-21  
+~~Greyscale UI too low-contrast; dark pieces hard to parse on dark squares/surfaces.~~ Fixed: backgrounds darkened (`--bg #000`), surfaces/borders lifted, dim/faint text raised (`--text-dim #c0c0c0`, `--text-faint #8c8c8c`), the default **Mono board's square contrast widened** (`#4a4a4a`/`#161616`), leftover amber glows neutralised to white, and **every piece style now carries a contrast halo** so black pieces read on dark backgrounds (board, settings previews, promo modal) and white pieces read on light themes. Token values + halo rules documented under **Rendering & CSS internals**; also improves #29.
 
 **29. Rank/file coordinate markers are hard to read** — ✅ Resolved 2026-06-21  
 ~~Labels rendered in `--text-faint` (#555) and were barely visible.~~ Fixed: `.coord` now renders at `rgba(255,255,255,.85)` with a dark `text-shadow` halo and a slightly larger font, legible on every board theme.

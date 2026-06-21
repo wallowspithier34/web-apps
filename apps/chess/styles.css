@@ -4,16 +4,19 @@
 
 /* ── Design tokens — retro pixel-art, monochrome (no system dark-mode detection) ── */
 :root {
-    --bg:           #0a0a0a;
-    --bg2:          #101010;
-    --surface:      #161616;
-    --surface2:     #222222;
-    --border:       #2a2a2a;
-    --border-lo:    #1a1a1a;
+    --bg:           #000000;
+    --bg2:          #0b0b0b;
+    --surface:      #1a1a1a;
+    --surface2:     #262626;
+    --border:       #3a3a3a;
+    --border-lo:    #2a2a2a;
 
     --text:         #e6e6e6;
-    --text-dim:     #9a9a9a;
-    --text-faint:   #555555;
+    --text-dim:     #c0c0c0;
+    --text-faint:   #8c8c8c;
+
+    /* UI text scale (driven by Settings → Text Size; html font-size multiplier) */
+    --text-scale:   1;
 
     /* White/grey accent for UI chrome (buttons, selections, highlights) */
     --gold:         #e8e8e8;
@@ -41,9 +44,9 @@
     --hint-bg:      rgba(255,255,255,.28);
     --confirm-bg:   rgba(255,255,255,.3);
 
-    /* Board square colours (default theme, neutral grey) */
-    --sq-light:     #3a3a3a;
-    --sq-dark:      #1c1c1c;
+    /* Board square colours (default theme, neutral grey — higher contrast) */
+    --sq-light:     #4a4a4a;
+    --sq-dark:      #161616;
 
     --mono: "SF Mono", ui-monospace, "Cascadia Code", "Courier New", Courier, monospace;
     --snap: 160ms cubic-bezier(.34,1.15,.64,1);
@@ -56,7 +59,7 @@
 
 /* ── Board colour themes ── */
 /* Each theme sets a --last-edge that contrasts with its own squares (last-move border). */
-[data-board="dungeon"] { --sq-light: #3a3a3a; --sq-dark: #1c1c1c; --last-edge: #e6a52e; }
+[data-board="dungeon"] { --sq-light: #4a4a4a; --sq-dark: #161616; --last-edge: #e6a52e; }
 [data-board="amber"]   { --sq-light: #6a4420; --sq-dark: #3a2010; --last-edge: #4ec3ff; }
 [data-board="walnut"]  { --sq-light: #d9b97a; --sq-dark: #8b5e38; --last-edge: #2f6bff; }
 [data-board="forest"]  { --sq-light: #d9e8c0; --sq-dark: #5a7a3a; --last-edge: #ff7a18; }
@@ -64,6 +67,8 @@
 [data-board="slate"]   { --sq-light: #b8b8c8; --sq-dark: #5a5a6a; --last-edge: #34d6b8; }
 
 html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+/* Root font size drives all rem-based text; --text-scale set from Settings → Text Size */
+html { font-size: calc(16px * var(--text-scale, 1)); }
 body {
     font-family: var(--mono);
     background: var(--bg);
@@ -237,6 +242,14 @@ body {
     pointer-events: none;
 }
 
+/* Contrast halo so pieces stay legible on any square / UI surface (dark-on-dark fix).
+   Black pieces get a light halo; white pieces a dark one. Applies to raster sets and
+   the inline-SVG "modern" set; glyph styles (classic/letters) use text-shadow below. */
+.piece.white .piece-img, .piece.ps-modern.white svg { filter: drop-shadow(0 0 1px rgba(0,0,0,.6)); }
+.piece.black .piece-img, .piece.ps-modern.black svg { filter: drop-shadow(0 0 1px rgba(255,255,255,.6)); }
+.piece.ps-classic.white { text-shadow: 0 0 1px #000, 0 0 3px #000; }
+.piece.ps-classic.black { text-shadow: 0 0 1px #fff, 0 0 3px #fff; }
+
 /* Letter style */
 .piece-letter {
     font-size: .72em;
@@ -297,12 +310,12 @@ body {
 }
 .btn::before { content: "[ "; color: var(--text-faint); }
 .btn::after  { content: " ]"; color: var(--text-faint); }
-.btn:hover, .btn:active { background: rgba(200,144,58,.1); box-shadow: 0 0 10px rgba(200,144,58,.3); }
+.btn:hover, .btn:active { background: rgba(255,255,255,.08); box-shadow: 0 0 10px rgba(255,255,255,.18); }
 .btn.btn-primary { border-color: var(--gold-bright); color: var(--gold-bright); }
 .btn.btn-sm { font-size: .7rem; padding: .4rem .7rem; }
 .btn.btn-wide { width: 100%; }
 .btn.btn-wide + .btn.btn-wide { margin-top: .5rem; }
-.btn.active { background: rgba(200,144,58,.2); color: var(--gold-bright); }
+.btn.active { background: rgba(255,255,255,.16); color: var(--gold-bright); }
 
 /* ══════════════════════════ Home screen ══════════════════════════ */
 #screen-home {
@@ -319,7 +332,7 @@ body {
     flex: 1;
     font-size: 1.1rem; font-weight: 700; letter-spacing: .1em;
     text-transform: uppercase; color: var(--gold-bright);
-    text-shadow: 0 0 10px rgba(200,144,58,.5);
+    text-shadow: 0 0 10px rgba(255,255,255,.35);
 }
 .home-title::before { content: "♟ "; }
 .home-stats {
@@ -533,7 +546,7 @@ body {
     padding: 1.8rem 2rem;
     min-width: 260px;
     text-align: center;
-    box-shadow: 0 0 30px rgba(200,144,58,.2);
+    box-shadow: 0 0 30px rgba(255,255,255,.12);
 }
 .gameover-icon { font-size: 2.5rem; margin-bottom: .5rem; }
 .gameover-title {
@@ -673,7 +686,7 @@ body {
     padding: 1.6rem 1.8rem;
     min-width: 240px; max-width: 320px;
     text-align: center;
-    box-shadow: 0 0 24px rgba(200,144,58,.2);
+    box-shadow: 0 0 24px rgba(255,255,255,.12);
 }
 .complete-burst { font-size: 2.2rem; margin-bottom: .4rem; }
 .complete-title { font-size: 1rem; font-weight: 700; color: var(--gold-bright); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .3rem; }
@@ -821,6 +834,17 @@ body {
 .swatch.active { border-color: var(--gold); }
 .swatch-board { display: grid; grid-template-columns: 1fr 1fr; width: 32px; height: 32px; }
 .swatch-board .sq { flex: 1; }
+
+/* Text-colour swatches (Settings → Text Colour) */
+.text-swatch {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: .4rem .55rem; cursor: pointer; min-width: 56px;
+    display: flex; flex-direction: column; align-items: center; gap: .3rem;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color var(--ease);
+}
+.text-swatch.active { border-color: var(--gold); }
+.text-swatch-dot { font-size: 1.3rem; font-weight: 900; line-height: 1; }
 
 /* Timer / difficulty selects */
 .radio-row { display: flex; flex-wrap: wrap; gap: .3rem .5rem; }

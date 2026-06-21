@@ -25,11 +25,26 @@ const PIECE_STYLES = [
     { id: "letters",   label: "Letters",  preview: ["K","P"] },
 ];
 
+const TEXT_SIZES = [
+    { label: "Normal", scale: 1 },
+    { label: "Large",  scale: 1.15 },
+    { label: "XL",     scale: 1.3 },
+];
+const TEXT_COLORS = [
+    { label: "Default", value: "" },
+    { label: "White",   value: "#ffffff" },
+    { label: "Amber",   value: "#e0b86a" },
+    { label: "Green",   value: "#9fe0a0" },
+    { label: "Cyan",    value: "#8fd9ff" },
+];
+
 const DEFAULT_PREFS = {
     pieces: "pixel",
     board:  "dungeon",
     timerPreset: NO_TIMER_IDX,
     botDifficulty: { mode: "auto", skillLevel: 10 },
+    textScale: 1,
+    textColor: "",
 };
 
 // ── Shared globals (accessed by play.js, trainer.js, etc.) ───────────────────
@@ -81,6 +96,28 @@ function applyBoardTheme() {
     document.getElementById("app").dataset.board = _prefs.board;
 }
 
+// Apply the user's accessibility text prefs (size multiplier + colour) to the root.
+// A non-default colour recolours the primary, dim, and faint text tokens (with
+// reduced opacity for dim/faint so the visual hierarchy is preserved). Accent/
+// structural colours (--gold, borders) are left alone.
+function applyTextPrefs() {
+    const root = document.documentElement;
+    root.style.setProperty("--text-scale", _prefs.textScale || 1);
+    const hexToRgba = (hex, a) => {
+        const n = parseInt(hex.slice(1), 16);
+        return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+    };
+    if (_prefs.textColor && /^#[0-9a-fA-F]{6}$/.test(_prefs.textColor)) {
+        root.style.setProperty("--text", _prefs.textColor);
+        root.style.setProperty("--text-dim", hexToRgba(_prefs.textColor, 0.82));
+        root.style.setProperty("--text-faint", hexToRgba(_prefs.textColor, 0.6));
+    } else {
+        root.style.removeProperty("--text");
+        root.style.removeProperty("--text-dim");
+        root.style.removeProperty("--text-faint");
+    }
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg, ms = 2000) {
     const el = document.getElementById("toast");
@@ -117,6 +154,38 @@ function openSettings() {
     document.getElementById("st-elo-input").value = _eloStore.elo;
     _renderPieceStyleGrid();
     _renderBoardSwatches();
+    _renderTextSize();
+    _renderTextColor();
+}
+
+function _renderTextSize() {
+    const row = document.getElementById("text-size-row");
+    row.innerHTML = "";
+    for (const t of TEXT_SIZES) {
+        const btn = document.createElement("button");
+        const active = Math.abs((_prefs.textScale || 1) - t.scale) < 0.001;
+        btn.className = "radio-btn" + (active ? " active" : "");
+        btn.textContent = t.label;
+        btn.addEventListener("click", () => {
+            _prefs.textScale = t.scale; savePrefs(); applyTextPrefs(); _renderTextSize();
+        });
+        row.appendChild(btn);
+    }
+}
+
+function _renderTextColor() {
+    const row = document.getElementById("text-color-row");
+    row.innerHTML = "";
+    for (const c of TEXT_COLORS) {
+        const btn = document.createElement("button");
+        btn.className = "text-swatch" + ((_prefs.textColor || "") === c.value ? " active" : "");
+        btn.innerHTML = `<span class="text-swatch-dot" style="color:${c.value || "var(--text)"}">A</span>` +
+                        `<span class="opt-label">${c.label}</span>`;
+        btn.addEventListener("click", () => {
+            _prefs.textColor = c.value; savePrefs(); applyTextPrefs(); _renderTextColor();
+        });
+        row.appendChild(btn);
+    }
 }
 
 function _renderPieceStyleGrid() {
@@ -191,6 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
     _store    = new Store();
     _eloStore = new EloStore();
     applyBoardTheme();
+    applyTextPrefs();
     refreshHome();
 
     // ── Home screen buttons ──
