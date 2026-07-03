@@ -1,0 +1,222 @@
+:root {
+    --bg: #0f1420;
+    --surface: #171e2e;
+    --surface2: #1e2739;
+    --border: #2b3650;
+    --text: #e8ecf4;
+    --text-dim: #9aa7c2;
+    --text-faint: #6b7794;
+    --accent: #6ea8fe;
+    --pos: #4ade80;   /* SOFR higher (positive spread) */
+    --neg: #f87171;   /* SOFR lower  (negative spread) */
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+#app {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: clamp(1rem, 3vw, 2.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-height: 100vh;
+}
+
+/* ── Header ── */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.25rem;
+}
+.titles h1 {
+    margin: 0;
+    font-size: clamp(1.35rem, 4vw, 1.9rem);
+    letter-spacing: -0.01em;
+}
+.subtitle {
+    margin: 0.25rem 0 0;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+}
+.controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.4rem;
+}
+.refresh-btn {
+    background: var(--accent);
+    color: #0b1220;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1.1rem;
+    font-weight: 650;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: filter 0.15s, opacity 0.15s;
+}
+.refresh-btn:hover { filter: brightness(1.08); }
+.refresh-btn:disabled { opacity: 0.55; cursor: progress; }
+.timestamp {
+    color: var(--text-faint);
+    font-size: 0.75rem;
+    font-family: var(--mono);
+}
+
+/* ── Panels ── */
+.panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+@media (max-width: 620px) {
+    .panels { grid-template-columns: 1fr; }
+    .controls { align-items: flex-start; }
+    .app-header { flex-direction: column; }
+}
+
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    min-height: 240px;
+}
+.panel-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.01em;
+}
+
+/* Spread headline */
+.spread {
+    font-family: var(--mono);
+    font-size: clamp(2.4rem, 8vw, 3.4rem);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+.spread.pos { color: var(--pos); }
+.spread.neg { color: var(--neg); }
+.spread-unit {
+    font-size: 0.9rem;
+    color: var(--text-faint);
+    font-weight: 500;
+    margin-left: 0.35rem;
+    letter-spacing: 0.04em;
+}
+
+/* Underlying legs */
+.legs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+}
+.leg {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+.leg-op {
+    color: var(--text-faint);
+    font-family: var(--mono);
+    width: 1ch;
+    flex: none;
+}
+.leg-label {
+    color: var(--text);
+    font-size: 0.85rem;
+    min-width: 0;
+}
+.leg-tenor {
+    display: block;
+    color: var(--text-faint);
+    font-size: 0.72rem;
+}
+.leg-value {
+    font-family: var(--mono);
+    font-weight: 650;
+    font-size: 1rem;
+    white-space: nowrap;
+}
+.leg-main { display: flex; gap: 0.6rem; min-width: 0; }
+
+.panel-source {
+    color: var(--text-faint);
+    font-size: 0.7rem;
+    font-family: var(--mono);
+}
+
+/* Error / missing state inside a panel */
+.panel.error { border-color: var(--neg); }
+.panel .err-msg {
+    color: var(--neg);
+    font-size: 0.85rem;
+    font-family: var(--mono);
+}
+
+/* Skeleton loading */
+.skeleton .spread,
+.skeleton .panel-title,
+.skeleton .leg { position: relative; color: transparent; }
+.skeleton .sk {
+    display: block;
+    background: linear-gradient(90deg, var(--surface2) 25%, #26324a 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.3s infinite;
+    border-radius: 6px;
+}
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ── Banner (global errors) ── */
+.banner {
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid var(--neg);
+    color: #fecaca;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+}
+.banner ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.banner code { font-family: var(--mono); font-size: 0.8rem; }
+
+/* ── Footer ── */
+.app-footer {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+}
+.app-footer p {
+    margin: 0;
+    color: var(--text-faint);
+    font-size: 0.72rem;
+    max-width: 60ch;
+}

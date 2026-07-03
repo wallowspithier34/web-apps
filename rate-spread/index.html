@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>5Y Swap Spreads</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <main id="app">
+        <header class="app-header">
+            <div class="titles">
+                <h1>5-Year Swap Spreads</h1>
+                <p class="subtitle">Live rates from Chatham Financial (cf.com)</p>
+            </div>
+            <div class="controls">
+                <button id="refresh" class="refresh-btn" type="button">Refresh</button>
+                <span id="timestamp" class="timestamp" aria-live="polite"></span>
+            </div>
+        </header>
+
+        <section id="panels" class="panels">
+            <!-- Panels injected by app.js -->
+        </section>
+
+        <div id="banner" class="banner" hidden></div>
+
+        <footer class="app-footer">
+            <p>Spread = SOFR swap − the paired swap, in basis points (1&nbsp;dp), signed
+               (negative when SOFR is the lower rate). Rates are the latest end-of-day
+               values published on cf.com; the live intraday column there is
+               subscriber-gated.</p>
+        </footer>
+    </main>
+    <script src="./app.js"></script>
+</body>
+</html>
