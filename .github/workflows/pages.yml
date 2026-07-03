@@ -2,7 +2,8 @@ name: Deploy to GitHub Pages
 
 # Publishes the static site (landing page + apps) to GitHub Pages on every
 # push to main. The site is plain HTML/CSS/JS with no build step, so the repo
-# root is uploaded as-is. `configure-pages` enables Pages on first run.
+# root is uploaded as-is (minus `rate-spread/`, see below). `configure-pages`
+# enables Pages on first run.
 on:
   push:
     branches: [main]
@@ -33,10 +34,20 @@ jobs:
         with:
           enablement: true
 
+      # rate-spread/ needs a Python + Playwright backend (headless-render scraper)
+      # that only runs locally — it is intentionally excluded from apps/index.json
+      # and cannot function as a static page. Stage everything else into _site/
+      # so its dead frontend (a fetch('/api/rates') with no backend to answer it)
+      # never ships to the public Pages site.
+      - name: Prepare deployable site
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='_site' --exclude='rate-spread' ./ _site/
+
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "."
+          path: "_site"
 
       - name: Deploy to GitHub Pages
         id: deployment
