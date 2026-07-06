@@ -1,67 +1,147 @@
-// Elo rating system for bot mode.
-// K=32, standard Elo formula. History capped at 50 games.
-// Skill Level → approx engine strength table for movetime scaling.
+// Adaptive rating system for the bot player.
+//
+// Four independent rating buckets, keyed by {game type} × {time control}:
+//   standard-blitz | standard-long | c960-blitz | c960-long
+// A game with a base time of 5 minutes or less is "blitz"; anything longer,
+// including no-timer games, is "long".
+//
+// The bot is always tuned to the player's *current* rating for that bucket, so
+// the expected score is 0.5 every game and the update is simply
+//   delta = round(K * (result - 0.5))   →  win +K/2, draw 0, loss -K/2.
+// Because the bot's real strength (strengthFromRating) rises monotonically with
+// the rating, the rating settles wherever the player scores ~50%, so wins and
+// losses balance over time. See strengthFromRating for the sub-Skill-0 weakening
+// (blunder injection) that lets the bot go below Stockfish's lowest setting.
 
-const ELO_KEY = "chess-v2:elo";
+const ELO_KEY     = "chess-v2:elo";
 const DEFAULT_ELO = 1200;
+const K_FACTOR    = 32;
+const HISTORY_MAX = 1000;   // progression entries kept per bucket (for the future Stats tab)
 
-// Skill Level 0–20 → approximate Elo equivalent used for Elo calculations.
-const SKILL_ELO = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100,
-                   1200, 1300, 1400, 1500, 1600, 1700, 1900, 2100, 2300, 2500, 2700];
+const BUCKET_KEYS = ["standard-blitz", "standard-long", "c960-blitz", "c960-long"];
+
+// Map a timer preset (seconds of base time; 0 = no timer) to a time-control tag.
+function timeControlTag(baseSeconds) {
+    return (baseSeconds > 0 && baseSeconds <= 300) ? "blitz" : "long";
+}
+function bucketKey(variant, baseSeconds) {
+    return `${variant === "c960" ? "c960" : "standard"}-${timeControlTag(baseSeconds)}`;
+}
 
 class EloStore {
     constructor() {
         this._data = this._load();
     }
 
+    _emptyBucket() { return { elo: DEFAULT_ELO, gamesPlayed: 0, history: [] }; }
+
     _load() {
-        try {
-            const raw = localStorage.getItem(ELO_KEY);
-            if (raw) return JSON.parse(raw);
-        } catch (_) { /* ignore */ }
-        return { elo: DEFAULT_ELO, history: [] };
+        let raw = null;
+        try { raw = JSON.parse(localStorage.getItem(ELO_KEY)); } catch (_) { /* ignore */ }
+        const data = {};
+        for (const k of BUCKET_KEYS) data[k] = this._emptyBucket();
+
+        if (raw && typeof raw === "object") {
+            if (raw.standard || raw["standard-long"] || BUCKET_KEYS.some((k) => raw[k])) {
+                // Already bucketed — copy over any known buckets.
+                for (const k of BUCKET_KEYS) {
+                    if (raw[k] && typeof raw[k] === "object") {
+                        data[k] = Object.assign(this._emptyBucket(), raw[k]);
+                        if (!Array.isArray(data[k].history)) data[k].history = [];
+                    }
+                }
+            } else if (typeof raw.elo === "number") {
+                // Migrate the old flat schema {elo, history:[{date,delta,result,opponentElo}]}
+                // into standard-long, reconstructing each game's post-game rating by
+                // walking the deltas backward from the current rating.
+                const b = this._emptyBucket();
+                b.elo = raw.elo;
+                const oldHist = Array.isArray(raw.history) ? raw.history : [];
+                b.gamesPlayed = oldHist.length;
+                let running = raw.elo;
+                const migrated = new Array(oldHist.length);
+                for (let i = oldHist.length - 1; i >= 0; i--) {
+                    const h = oldHist[i];
+                    migrated[i] = {
+                        ts: h.date || null,
+                        gameNo: i + 1,
+                        elo: running,
+                        delta: h.delta || 0,
+                        result: h.result,
+                    };
+                    running -= (h.delta || 0);
+                }
+                b.history = migrated;
+                data["standard-long"] = b;
+            }
+        }
+        return data;
     }
 
     _save() {
         try { localStorage.setItem(ELO_KEY, JSON.stringify(this._data)); } catch (_) { /* quota */ }
     }
 
-    get elo() { return this._data.elo; }
+    _bucket(key) {
+        if (!this._data[key]) this._data[key] = this._emptyBucket();
+        return this._data[key];
+    }
 
-    // Set Elo directly (manual edit). Clamps to [100, 3000].
-    setElo(n) {
-        this._data.elo = Math.max(100, Math.min(3000, Math.round(n)));
+    // ── Reads ──────────────────────────────────────────────────────────────────
+    elo(key)         { return this._bucket(key).elo; }
+    bucket(key)      { return this._bucket(key); }
+    history(key)     { return this._bucket(key).history; }
+    all()            { return this._data; }
+    keys()           { return BUCKET_KEYS.slice(); }
+
+    // Set a bucket's rating directly (manual edit). Clamps to [100, 3000].
+    setElo(key, n) {
+        this._bucket(key).elo = Math.max(100, Math.min(3000, Math.round(n)));
         this._save();
     }
 
-    // Record the result of a bot game and update Elo.
-    // result: 1 = user win, 0.5 = draw, 0 = user loss.
-    // skillLevel: the Stockfish Skill Level the bot played at.
-    updateAfterGame(result, skillLevel) {
-        const opponentElo = SKILL_ELO[Math.max(0, Math.min(20, skillLevel))];
-        const expected = 1 / (1 + Math.pow(10, (opponentElo - this._data.elo) / 400));
-        const delta = Math.round(32 * (result - expected));
-        const oldElo = this._data.elo;
-        this._data.elo = Math.max(100, Math.min(3000, oldElo + delta));
-        const today = new Date().toISOString().slice(0, 10);
-        this._data.history.push({ date: today, delta, result, opponentElo });
-        // Keep only last 50 games.
-        if (this._data.history.length > 50) this._data.history.shift();
+    // Record an adaptive game result and update the bucket's rating.
+    // result: 1 = player win, 0.5 = draw, 0 = player loss.
+    updateAfterGame(key, result) {
+        const b = this._bucket(key);
+        const pre = b.elo;
+        const delta = Math.round(K_FACTOR * (result - 0.5)); // opponent == self → expected 0.5
+        b.elo = Math.max(100, Math.min(3000, pre + delta));
+        b.gamesPlayed = (b.gamesPlayed || 0) + 1;
+        b.history.push({
+            ts: new Date().toISOString(),
+            gameNo: b.gamesPlayed,
+            elo: b.elo,
+            delta,
+            result,
+        });
+        if (b.history.length > HISTORY_MAX) b.history.shift();
         this._save();
-        return { oldElo, newElo: this._data.elo, delta };
+        return { pre, post: b.elo, delta };
     }
 
-    get history() { return this._data.history; }
-
-    // Map a user Elo to a Stockfish Skill Level 0–20.
-    static skillLevelFromElo(userElo) {
-        for (let i = SKILL_ELO.length - 1; i >= 0; i--) {
-            if (userElo >= SKILL_ELO[i]) return i;
+    // ── Strength model ─────────────────────────────────────────────────────────
+    // Convert a rating to concrete engine controls. Two regimes:
+    //   • elo ≥ 800  ("engine"):   Stockfish Skill Level 0–20 + scaled movetime.
+    //   • elo < 800  ("beginner"): Skill 0 plus a rising blunder probability that
+    //     plays a uniformly random legal move — this is how the bot goes *below*
+    //     Stockfish's weakest setting so a true beginner can still reach ~50%.
+    // Strength increases monotonically with elo, which is what makes the adaptive
+    // loop converge.
+    static strengthFromRating(elo) {
+        elo = Math.max(100, Math.min(3000, elo));
+        if (elo >= 800) {
+            const skill    = Math.max(0, Math.min(20, Math.round((elo - 800) / 100)));
+            const movetime = Math.max(100, Math.min(1500, Math.round(100 + (elo - 800) * 0.6)));
+            return { skill, movetime, blunderProb: 0, depthCap: 0 };
         }
-        return 0;
+        const t = (800 - elo) / 700;                 // 0 at elo 800 → 1 at elo 100
+        const blunderProb = Math.min(0.9, t * 0.9);
+        const depthCap    = elo < 400 ? 1 : 0;        // extra dumbing at the very bottom
+        return { skill: 0, movetime: 80, blunderProb, depthCap };
     }
 
-    // Movetime in ms for a given skill level when no clock is running.
+    // Movetime for a fixed manual Skill Level (no clock running).
     static movetimeFromSkill(level) {
         if (level <= 5)  return 200;
         if (level <= 10) return 500;
@@ -70,5 +150,7 @@ class EloStore {
     }
 }
 
-window.EloStore = EloStore;
-window.SKILL_ELO = SKILL_ELO;
+window.EloStore      = EloStore;
+window.bucketKey     = bucketKey;
+window.timeControlTag = timeControlTag;
+window.BUCKET_KEYS   = BUCKET_KEYS;

@@ -143,6 +143,30 @@ const Board = (() => {
 
         const el = _pieceEls.get(fromName);
 
+        // Castling — move king and rook to their final squares. For 960 the king's
+        // target and the rook's start may differ from the tapped square, so use the
+        // engine's kingTo/rookTo; move.to is the rook's start square there.
+        if (result.castle) {
+            const kingToName   = result.kingTo != null ? idxToName(result.kingTo)
+                : ({ K:"g1", Q:"c1", k:"g8", q:"c8" })[result.castle];
+            const rookFromName = result.rookTo != null ? toName
+                : ({ K:"h1", Q:"a1", k:"h8", q:"a8" })[result.castle];
+            const rookToName   = result.rookTo != null ? idxToName(result.rookTo)
+                : ({ K:"f1", Q:"d1", k:"f8", q:"d8" })[result.castle];
+            const rEl = _pieceEls.get(rookFromName);
+            if (el)  _placePieceEl(el, kingToName);
+            if (rEl) _placePieceEl(rEl, rookToName);
+            _pieceEls.delete(fromName);
+            _pieceEls.delete(rookFromName);
+            if (el)  _pieceEls.set(kingToName, el);
+            if (rEl) _pieceEls.set(rookToName, rEl);
+            if (el) { el.classList.add("piece-moved"); setTimeout(() => el && el.classList.remove("piece-moved"), 220); }
+            _lastMove = { from: fromName, to: kingToName };
+            clearHighlights();
+            applyLastTint();
+            return result;
+        }
+
         // Remove captured piece (normal capture)
         if (_pieceEls.has(toName)) {
             const cap = _pieceEls.get(toName);
@@ -170,12 +194,6 @@ const Board = (() => {
                 if (inner.text != null) el.textContent = inner.text;
                 else el.innerHTML = inner.html;
             }
-        }
-        // Castle: move the rook
-        if (result.castle) {
-            const rookMap = { K:["h1","f1"], Q:["a1","d1"], k:["h8","f8"], q:["a8","d8"] }[result.castle];
-            const rEl     = _pieceEls.get(rookMap[0]);
-            if (rEl) { _placePieceEl(rEl, rookMap[1]); _pieceEls.delete(rookMap[0]); _pieceEls.set(rookMap[1], rEl); }
         }
 
         _lastMove = { from: fromName, to: toName };

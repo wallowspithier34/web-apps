@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Chess">
-    <meta name="theme-color" content="#0a0a0a">
+    <meta name="theme-color" content="#f5f0d0">
     <link rel="apple-touch-icon" href="./icon.svg">
     <link rel="manifest" href="./manifest.json">
     <title>Chess</title>
@@ -21,68 +21,43 @@
             <div class="home-title">Chess</div>
             <button class="btn-icon" id="btn-settings" aria-label="Settings">⚙</button>
         </div>
-        <div class="elo-badge" id="elo-badge">
-            <div>
-                <div class="elo-label">Your Rating</div>
-                <div class="elo-num" id="home-elo">1200</div>
-            </div>
-        </div>
-        <div class="home-stats" id="home-stats">
-            <div class="stat-box"><span class="stat-val" id="home-streak">0</span><span class="stat-lbl">Day streak</span></div>
-            <div class="stat-box"><span class="stat-val" id="home-xp">0</span><span class="stat-lbl">Total XP</span></div>
-            <div class="stat-box"><span class="stat-val" id="home-reviews">0</span><span class="stat-lbl">Reviews</span></div>
-        </div>
+
+        <div class="ratings" id="ratings"></div>
+
         <div class="resume-banner" id="resume-banner" hidden>
             <div class="resume-text">
-                <div class="resume-lbl">Resume Game</div>
+                <div class="resume-lbl">Resume game</div>
                 <div class="resume-sub" id="resume-sub">Paused game</div>
             </div>
-            <span>▶</span>
+            <span class="resume-arrow">▶</span>
         </div>
-        <div class="mode-tiles">
-            <button class="mode-tile" id="tile-trainer">
-                <div class="mode-icon">♟</div>
-                <div class="mode-name">Trainer</div>
-                <div class="mode-desc">Spaced-repetition opening drills</div>
-            </button>
-            <button class="mode-tile" id="tile-pvp">
-                <div class="mode-icon">⚔</div>
-                <div class="mode-name">Pass & Play</div>
-                <div class="mode-desc">Two players, one screen</div>
-            </button>
-            <button class="mode-tile" id="tile-bot">
-                <div class="mode-icon">🤖</div>
-                <div class="mode-name">vs Bot</div>
-                <div class="mode-desc">Play against Stockfish</div>
-            </button>
-            <button class="mode-tile" id="tile-library">
-                <div class="mode-icon">📖</div>
-                <div class="mode-name">Library</div>
-                <div class="mode-desc">Browse opening reference</div>
-            </button>
-        </div>
-        <!-- Bot settings (difficulty + timer) inline on home screen -->
-        <div class="home-bot-config" id="home-bot-config">
-            <div class="home-bot-hdr">
-                <span>🤖</span>
-                <span class="home-bot-lbl">Bot Settings</span>
-            </div>
-            <div class="home-bot-row">
-                <span class="home-bot-sub">Difficulty</span>
-                <div class="radio-row">
-                    <button class="radio-btn" id="home-diff-auto">Auto (by Elo)</button>
-                    <button class="radio-btn" id="home-diff-manual">Manual</button>
-                </div>
-                <div id="home-skill-row-wrap" class="skill-row" style="display:none;margin-top:.3rem">
-                    <span style="font-size:.65rem;color:var(--text-faint)">Skill</span>
-                    <input type="range" id="home-skill-slider" min="0" max="20" value="10">
-                    <span class="skill-val" id="home-skill-val">10</span>
+
+        <div class="config-card">
+            <div class="config-row">
+                <span class="config-label">Game</span>
+                <div class="seg" id="cfg-variant">
+                    <button class="seg-btn" data-variant="standard">Standard</button>
+                    <button class="seg-btn" data-variant="c960">Chess960</button>
                 </div>
             </div>
-            <div class="home-bot-row">
-                <span class="home-bot-sub">Timer</span>
-                <div class="radio-row" id="home-timer-radio"></div>
+            <div class="config-row">
+                <span class="config-label">Time</span>
+                <div class="seg seg-wrap" id="cfg-timer"></div>
             </div>
+            <div class="config-row">
+                <span class="config-label">Bot</span>
+                <div class="seg" id="cfg-diff">
+                    <button class="seg-btn" data-diff="adaptive">Adaptive</button>
+                    <button class="seg-btn" data-diff="manual">Manual</button>
+                </div>
+            </div>
+            <div class="config-row skill-row" id="cfg-skill-row" hidden>
+                <span class="config-label">Skill</span>
+                <input type="range" id="cfg-skill" min="0" max="20" value="8">
+                <span class="skill-val" id="cfg-skill-val">8</span>
+            </div>
+            <p class="config-note" id="cfg-note"></p>
+            <button class="btn btn-primary btn-play" id="btn-play">Play</button>
         </div>
     </div>
 
@@ -91,7 +66,7 @@
         <div class="play-top">
             <div class="bar">
                 <button class="btn-icon" id="btn-play-back" aria-label="Back">←</button>
-                <span class="bar-title" id="play-title">Game</span>
+                <span class="bar-title" id="play-title">Chess</span>
                 <button class="btn-icon" id="btn-flip" aria-label="Flip board">⇅</button>
             </div>
             <div class="clock-row" id="top-clock">
@@ -100,7 +75,6 @@
                 <span class="clock-time" id="top-time">—</span>
             </div>
             <div class="bot-status" id="bot-status" hidden>Ready</div>
-            <div class="opening-hint" id="opening-hint"></div>
         </div>
         <div class="board-wrap">
             <div class="board" id="play-board"></div>
@@ -114,8 +88,6 @@
             <div class="move-list" id="move-list"></div>
             <div class="play-actions">
                 <button class="btn" id="btn-resign">Resign</button>
-                <button class="btn" id="btn-draw">Draw</button>
-                <button class="btn" id="btn-new-game">New</button>
             </div>
         </div>
 
@@ -130,90 +102,44 @@
         <!-- Game-over overlay -->
         <div id="gameover-overlay" class="gameover-overlay" hidden>
             <div class="gameover-card">
-                <div class="gameover-icon" id="go-icon">♟</div>
+                <div class="gameover-icon" id="go-icon">♚</div>
                 <div class="gameover-title" id="go-title">Game Over</div>
                 <div class="gameover-sub" id="go-sub"></div>
                 <div class="elo-delta" id="go-elo-delta" hidden></div>
                 <div class="gameover-actions">
-                    <button class="btn" id="go-btn-home">Home</button>
-                    <button class="btn btn-primary" id="go-btn-again">Again</button>
+                    <button class="btn" id="go-btn-edit">Edit settings</button>
+                    <button class="btn btn-primary" id="go-btn-rematch">Rematch</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ══════════════════ Trainer ══════════════════ -->
-    <div id="screen-trainer" class="screen">
+    <!-- ══════════════════ History ══════════════════ -->
+    <div id="screen-history" class="screen">
         <div class="bar">
-            <button class="btn-icon" id="btn-trainer-back" aria-label="Back">←</button>
-            <span class="bar-title">Trainer</span>
-            <button class="btn-icon" id="btn-browse" aria-label="Browse openings">≡</button>
+            <button class="btn-icon" id="btn-history-back" aria-label="Back">←</button>
+            <span class="bar-title">Game History</span>
         </div>
-        <div class="trainer-stats" id="trainer-stats">
-            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-streak">0</span><span class="trainer-stat-lbl">Streak</span></div>
-            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-xp">0</span><span class="trainer-stat-lbl">XP</span></div>
-            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-reviews">0</span><span class="trainer-stat-lbl">Reviews</span></div>
-            <div class="trainer-stat"><span class="trainer-stat-val" id="tr-due">0</span><span class="trainer-stat-lbl">Due today</span></div>
-        </div>
-        <div class="session-btns">
-            <button class="btn btn-primary btn-wide" id="btn-daily">Daily Session</button>
-            <button class="btn btn-wide" id="btn-weakest">Review Weakest</button>
-        </div>
-        <div id="tier-sections"></div>
+        <div class="history-list" id="history-list"></div>
     </div>
 
-    <!-- ══════════════════ Drill ══════════════════ -->
-    <div id="screen-drill" class="screen">
-        <div class="drill-bar">
-            <button class="btn-icon" id="btn-drill-back" aria-label="Back">←</button>
-            <span class="drill-name" id="drill-name">Opening</span>
-            <div class="drill-progress" id="drill-progress"></div>
+    <!-- ══════════════════ Replay ══════════════════ -->
+    <div id="screen-replay" class="screen">
+        <div class="bar">
+            <button class="btn-icon" id="btn-replay-back" aria-label="Back">←</button>
+            <span class="bar-title" id="replay-title">Replay</span>
         </div>
-        <div class="drill-info">
-            <span id="turn-indicator" class="waiting">Loading…</span>
-            <span id="move-note"></span>
-        </div>
+        <div class="replay-info" id="replay-info"></div>
         <div class="board-wrap">
-            <div class="board" id="drill-board"></div>
+            <div class="board" id="replay-board"></div>
         </div>
-
-        <!-- Completion overlay -->
-        <div id="complete-overlay">
-            <div class="complete-card">
-                <div class="complete-burst" id="comp-burst">★</div>
-                <div class="complete-title" id="comp-title">Position learned!</div>
-                <div class="complete-sub" id="comp-sub">Come back soon to review</div>
-                <div class="complete-xp" id="comp-xp">+10 XP</div>
-                <div class="mastery-bar-wrap"><div class="mastery-bar-fill" id="comp-bar" style="width:0%"></div></div>
-                <div class="mastery-bar-pct" id="comp-pct">0% mastery</div>
-                <div class="complete-actions">
-                    <button class="btn" id="comp-btn-home">Home</button>
-                    <button class="btn btn-primary" id="comp-btn-next">Next</button>
-                </div>
-            </div>
+        <div class="replay-controls">
+            <button class="btn" id="replay-first">⏮</button>
+            <button class="btn" id="replay-prev">◀</button>
+            <span class="replay-counter" id="replay-counter">0 / 0</span>
+            <button class="btn" id="replay-next">▶</button>
+            <button class="btn" id="replay-last">⏭</button>
         </div>
-    </div>
-
-    <!-- ══════════════════ Practice ══════════════════ -->
-    <div id="screen-practice" class="screen">
-        <div class="bar">
-            <button class="btn-icon" id="btn-practice-back" aria-label="Back">←</button>
-            <span class="bar-title">Browse Openings</span>
-        </div>
-        <div class="filters" id="practice-filters">
-            <div class="filter-group" id="filter-tier"></div>
-            <div class="filter-group" id="filter-color"></div>
-        </div>
-        <div class="practice-list" id="practice-list"></div>
-    </div>
-
-    <!-- ══════════════════ Library ══════════════════ -->
-    <div id="screen-library" class="screen">
-        <div class="bar">
-            <button class="btn-icon" id="btn-library-back" aria-label="Back">←</button>
-            <span class="bar-title">Library</span>
-        </div>
-        <div class="library-list" id="library-list"></div>
     </div>
 
     <!-- ══════════════════ Settings Panel ══════════════════ -->
@@ -225,15 +151,10 @@
         <div class="settings-body">
 
             <div class="settings-section">
-                <span class="settings-label">Your Elo Rating</span>
-                <div class="elo-row">
-                    <div class="elo-display" id="st-elo-display">1200</div>
-                    <div class="elo-input-wrap" id="st-elo-input-wrap">
-                        <input type="number" class="elo-input" id="st-elo-input" min="100" max="3000" value="1200">
-                        <button class="btn btn-sm" id="st-elo-save">Save</button>
-                        <button class="btn btn-sm" id="st-elo-cancel">✕</button>
-                    </div>
-                    <button class="btn btn-sm" id="st-elo-edit">Edit</button>
+                <span class="settings-label">Theme</span>
+                <div class="seg" id="theme-seg">
+                    <button class="seg-btn" data-theme="light">Light</button>
+                    <button class="seg-btn" data-theme="dark">Dark</button>
                 </div>
             </div>
 
@@ -243,29 +164,28 @@
             </div>
 
             <div class="settings-section">
-                <span class="settings-label">Board Colour</span>
+                <span class="settings-label">Board</span>
                 <div class="swatch-grid" id="board-swatch-grid"></div>
             </div>
 
             <div class="settings-section">
-                <span class="settings-label">Text Size</span>
-                <div class="radio-row" id="text-size-row"></div>
+                <span class="settings-label">Ratings</span>
+                <div class="ratings-edit" id="ratings-edit"></div>
             </div>
 
             <div class="settings-section">
-                <span class="settings-label">Text Colour</span>
-                <div class="swatch-grid" id="text-color-row"></div>
+                <button class="btn btn-wide" id="st-history">View Game History</button>
             </div>
 
             <div class="settings-section">
-                <button class="btn btn-wide" id="st-export">Export Progress (Markdown)</button>
+                <button class="btn btn-wide" id="st-export">Export Save (JSON)</button>
                 <button class="btn btn-wide" id="st-import">Import Save File</button>
-                <input type="file" id="st-import-file" accept=".md,.json,.txt" hidden>
+                <input type="file" id="st-import-file" accept=".json,.md,.txt" hidden>
             </div>
 
             <div class="settings-section">
                 <button class="btn btn-wide btn-danger" id="st-reset">Reset All Data</button>
-                <span class="settings-hint">Erases all progress permanently. Export a backup first.</span>
+                <span class="settings-hint">Erases all ratings, settings, and game history permanently. Export a backup first.</span>
             </div>
 
         </div>
@@ -277,18 +197,14 @@
 </div><!-- #app -->
 
 <script src="./chess.js"></script>
-<script src="./openings.js"></script>
-<script src="./srs.js"></script>
 <script src="./board.js"></script>
 <script src="./elo.js"></script>
 <script src="./timer.js"></script>
 <script src="./bot.js"></script>
-<script src="./opening-detect.js"></script>
 <script src="./export.js"></script>
 <script src="./home.js"></script>
 <script src="./play.js"></script>
-<script src="./trainer.js"></script>
-<script src="./library.js"></script>
+<script src="./history.js"></script>
 <script>
     if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("./sw.js");
