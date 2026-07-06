@@ -20,7 +20,8 @@ class BotEngine {
         this._initRej = null;
         this._mode    = "adaptive";  // "adaptive" | "manual"
         this._variant = "standard";  // "standard" | "c960"
-        this._strength = { skill: 5, movetime: 200, blunderProb: 0, depthCap: 0 };
+        this._strength = { skill: 5, movetime: 200, multipv: 1, weakness: 0, blunderProb: 0, depthCap: 0 };
+        this._pv      = [];          // candidate first-moves by MultiPV rank (for weak play)
     }
 
     // opts: { mode, elo, skill, variant }. Returns a Promise resolved when ready.
@@ -29,7 +30,7 @@ class BotEngine {
         this._variant = opts.variant === "c960" ? "c960" : "standard";
         if (this._mode === "manual") {
             const skill = Math.max(0, Math.min(20, opts.skill | 0));
-            this._strength = { skill, movetime: EloStore.movetimeFromSkill(skill), blunderProb: 0, depthCap: 0 };
+            this._strength = { skill, movetime: EloStore.movetimeFromSkill(skill), multipv: 1, weakness: 0, blunderProb: 0, depthCap: 0 };
         } else {
             this._strength = EloStore.strengthFromRating(opts.elo != null ? opts.elo : 1200);
         }
@@ -58,35 +59,55 @@ class BotEngine {
             if (this._initRes) { this._initRes(); this._initRes = null; }
             return;
         }
-        if (typeof line === "string" && line.startsWith("bestmove")) {
-            const uci = line.split(" ")[1] || null; // null if "bestmove (none)"
+        if (typeof line !== "string") return;
+
+        // Collect MultiPV candidate first-moves; the deepest iteration wins.
+        if (line.startsWith("info") && line.includes("multipv")) {
+            const rank = line.match(/multipv (\d+)/);
+            const pv   = line.match(/ pv (\S+)/);
+            if (rank && pv) this._pv[parseInt(rank[1], 10) - 1] = pv[1];
+            return;
+        }
+        if (line.startsWith("bestmove")) {
+            const raw = line.split(" ")[1];
+            const best = (raw && raw !== "(none)") ? raw : null;
             if (this._queue.length) {
-                const { resolve } = this._queue.shift();
-                resolve(uci);
+                const { resolve, legalUci } = this._queue.shift();
+                resolve(this._selectMove(best, legalUci));
             }
         }
+    }
+
+    // Choose the move to actually play from the engine's output, applying the
+    // configured weakness. A residual blunder chance (bottom ratings only) plays a
+    // fully random legal move; otherwise sample among the MultiPV candidates,
+    // biased toward weaker ones by `weakness` (0 = always the best move).
+    _selectMove(best, legalUci) {
+        const s = this._strength;
+        if (s.blunderProb > 0 && legalUci && legalUci.length && Math.random() < s.blunderProb) {
+            return legalUci[Math.floor(Math.random() * legalUci.length)];
+        }
+        const candidates = this._pv.filter(Boolean);
+        if (!candidates.length) return best;
+        const r = Math.max(0, Math.min(candidates.length - 1,
+            Math.floor(s.weakness * Math.random() * candidates.length)));
+        return candidates[r];
     }
 
     _configure() {
         this._send("setoption name Threads value 1");
         this._send("setoption name Hash value 16");
         this._send("setoption name Skill Level value " + this._strength.skill);
+        this._send("setoption name MultiPV value " + Math.max(1, this._strength.multipv));
         if (this._variant === "c960") this._send("setoption name UCI_Chess960 value true");
     }
 
     // Get the bot's move for the current position.
     //   fen:         current position FEN
     //   remainingMs: ms left on the bot's clock (0 = no timer)
-    //   legalUci:    array of legal UCI moves, used for blunder injection
+    //   legalUci:    array of legal UCI moves, used for random-blunder weakening
     getBestMove(fen, remainingMs = 0, legalUci = null) {
         if (!this._ready) return Promise.reject(new Error("Engine not ready"));
-
-        // Sub-Skill-0 weakening: sometimes just play a random legal move.
-        if (this._strength.blunderProb > 0 && legalUci && legalUci.length &&
-            Math.random() < this._strength.blunderProb) {
-            const pick = legalUci[Math.floor(Math.random() * legalUci.length)];
-            return new Promise((res) => setTimeout(() => res(pick), 250)); // small delay feels natural
-        }
 
         let goCmd;
         if (this._strength.depthCap > 0) {
@@ -98,7 +119,8 @@ class BotEngine {
             goCmd = "go movetime " + Math.max(20, mt);
         }
         return new Promise((resolve, reject) => {
-            this._queue.push({ resolve, reject });
+            this._pv = [];
+            this._queue.push({ resolve, reject, legalUci });
             this._send("position fen " + fen);
             this._send(goCmd);
         });
@@ -106,6 +128,7 @@ class BotEngine {
 
     get skillLevel()  { return this._strength.skill; }
     get blunderProb() { return this._strength.blunderProb; }
+    get weakness()    { return this._strength.weakness; }
 
     quit() {
         if (this._worker) {

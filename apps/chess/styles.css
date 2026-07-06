@@ -208,7 +208,10 @@ html, body {
 .bar-title { font-family: var(--serif); font-size: 1.1rem; font-weight: 700; }
 
 /* ══════════════════════════ Play ══════════════════════════ */
-#screen-play { justify-content: space-between; }
+/* Top and board hug together; the bottom panel grows to absorb the leftover
+   height (a square board can't fill a tall portrait screen), so there is no dead
+   gap directly above/below the board. */
+#screen-play { justify-content: flex-start; }
 .play-top { flex-shrink: 0; }
 
 .clock-row {
@@ -265,6 +268,7 @@ body.dark .board-wrap { background: #12100e; }
 .sq-check { background: var(--chk-bg) !important; }
 .sq-wrong { background: var(--wrong-bg) !important; }
 .sq-hint  { background: var(--hint-bg) !important; }
+.sq-premove { background: rgba(220,120,40,.5) !important; outline: 2px solid rgba(200,100,30,.9); outline-offset: -2px; }
 .sq-legal::after {
     content: ''; position: absolute; top:50%; left:50%;
     transform: translate(-50%,-50%); width: 28%; height: 28%;
@@ -311,9 +315,12 @@ body.dark .board-wrap { background: #12100e; }
 .piece-captured { opacity: 0; transition: opacity 180ms ease; pointer-events: none; }
 
 /* ── Bottom controls ── */
-.play-bottom { flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
+/* Grows to fill the height left below the board; the move list (flex child)
+   absorbs the slack so the clock stays hugged to the board and actions sit at the
+   bottom. */
+.play-bottom { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); }
 .move-list {
-    max-height: 3.4rem; overflow-y: auto;
+    flex: 1 1 auto; min-height: 3.4rem; overflow-y: auto;
     padding: .4rem .8rem; font-size: .8rem; color: var(--text-dim);
     white-space: pre-wrap; font-variant-numeric: tabular-nums; line-height: 1.5;
     border-top: 1px solid var(--border);
@@ -351,9 +358,11 @@ body.dark .board-wrap { background: #12100e; }
 .gameover-icon { font-size: 2.6rem; }
 .gameover-title { font-family: var(--serif); font-size: 1.5rem; font-weight: 700; margin-top: .3rem; }
 .gameover-sub { color: var(--text-dim); margin-top: .2rem; }
+.modal-text { color: var(--text-dim); margin-top: .6rem; font-size: .92rem; line-height: 1.4; }
 .elo-delta { margin-top: .7rem; font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .elo-delta.pos { color: var(--win); }
 .elo-delta.neg { color: var(--loss); }
+.elo-delta.neutral { color: var(--text-dim); }
 .gameover-actions { display: flex; gap: .6rem; margin-top: 1.2rem; }
 .gameover-actions .btn { flex: 1; }
 

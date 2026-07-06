@@ -32,7 +32,7 @@ const DEFAULT_PREFS = {
     pieces: "cburnett",
     board:  "classic",
     variant: "standard",
-    timerPreset: 4,                              // 10+0 → "long" bucket
+    timerPreset: 6,                              // 10+0 → "long" bucket
     difficulty: { mode: "adaptive", skill: 8 },
 };
 
@@ -117,8 +117,9 @@ function refreshHome() {
     const banner = document.getElementById("resume-banner");
     if (saved && (saved.history || []).length > 0) {
         const label = saved.variant === "c960" ? "Chess960" : "Standard";
+        const n = saved.history.length;
         document.getElementById("resume-sub").textContent =
-            `${label} — ${saved.history.length} moves played`;
+            `${label} — ${n} move${n === 1 ? "" : "s"} played`;
         banner.hidden = false;
     } else {
         banner.hidden = true;
@@ -257,15 +258,27 @@ document.addEventListener("DOMContentLoaded", () => {
         _renderConfig();
     });
 
-    // Play button — start a fresh game with the chosen settings.
+    // Play button — start a fresh game with the chosen settings. If a game is
+    // paused, confirm via an in-app modal (not a system dialog) first.
+    const startConfiguredGame = () => {
+        initPlay({ variant: _prefs.variant });
+        showScreen("screen-play");
+    };
     document.getElementById("btn-play").addEventListener("click", () => {
         const saved = _readSavedGame();
         if (saved && (saved.history || []).length > 0) {
-            if (!confirm("Starting a new game abandons your paused game (counts as a resignation). Continue?")) return;
-            resignSavedGame();
+            document.getElementById("confirm-modal").hidden = false;
+            return;
         }
-        initPlay({ variant: _prefs.variant });
-        showScreen("screen-play");
+        startConfiguredGame();
+    });
+    document.getElementById("confirm-cancel").addEventListener("click", () => {
+        document.getElementById("confirm-modal").hidden = true;
+    });
+    document.getElementById("confirm-ok").addEventListener("click", () => {
+        document.getElementById("confirm-modal").hidden = true;
+        resignSavedGame();
+        startConfiguredGame();
     });
 
     // Resume banner

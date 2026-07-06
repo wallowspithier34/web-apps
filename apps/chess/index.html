@@ -191,6 +191,18 @@
         </div>
     </div>
 
+    <!-- ══════════════════ Confirm dialog (new game vs paused game) ══════════════════ -->
+    <div id="confirm-modal" class="gameover-overlay" hidden>
+        <div class="gameover-card">
+            <div class="gameover-title">Game in progress</div>
+            <p class="modal-text">Starting a new game will resign your paused game.</p>
+            <div class="gameover-actions">
+                <button class="btn" id="confirm-cancel">Cancel</button>
+                <button class="btn btn-primary" id="confirm-ok">New game</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ══════════════════ Toast ══════════════════ -->
     <div id="toast" role="alert" aria-live="polite"></div>
 

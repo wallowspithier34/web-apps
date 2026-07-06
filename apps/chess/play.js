@@ -26,6 +26,9 @@ let _selectedSq = null;
 let _waiting    = false;
 let _gameOver   = false;
 let _boardEl;
+let _gen        = 0;         // bumped each game; async bot callbacks bail if it changed
+let _preMove    = null;      // queued pre-move { from, to } (played on the player's turn)
+let _preSel     = null;      // pre-move source square being selected
 
 // ── Init ────────────────────────────────────────────────────────────────────
 function initPlay(config) {
@@ -58,7 +61,23 @@ function _setTitle() {
     document.getElementById("play-title").textContent = _variant === "c960" ? "Chess960" : "Chess";
 }
 
+// Reset per-game UI state carried on shared DOM: the two-tap resign button and any
+// queued pre-move. Called at the start of every game so state can't leak across games.
+function _resetControls() {
+    const btn = document.getElementById("btn-resign");
+    if (btn) { btn.textContent = "Resign"; delete btn.dataset.confirm; }
+    _clearPreMove();
+}
+
+function _clearPreMove() {
+    _preMove = null;
+    _preSel  = null;
+    Board.clearPremove();
+}
+
 function _newGame() {
+    _gen++;
+    _resetControls();
     _setTitle();
     _startFen = _variant === "c960" ? Chess.random960Fen() : undefined;
     _game     = new Chess(_startFen);   // undefined → standard start
@@ -78,6 +97,8 @@ function _newGame() {
 }
 
 function _resumeGame() {
+    _gen++;
+    _resetControls();
     let saved;
     try { saved = JSON.parse(localStorage.getItem(GAME_KEY)); } catch (_) { saved = null; }
     if (!saved) { initPlay({ variant: getPrefs().variant }); return; }
@@ -95,17 +116,22 @@ function _resumeGame() {
     _game = new Chess(_startFen);
     _posCounts = {};
     _recordPosition();
+    let lastResult = null;
     for (const uci of _history) {
-        if (!_game.move(Chess.parseUci(uci))) { initPlay({ variant: _variant }); return; }
+        lastResult = _game.move(Chess.parseUci(uci));
+        if (!lastResult) { initPlay({ variant: _variant }); return; }
         _recordPosition();
     }
 
     _setTitle();
     Board.buildBoard(_boardEl, _playerColor, _onSquareTap);
     Board.renderPieces(_game, _boardEl, _style);
-    if (_history.length) {
+    if (_history.length && lastResult) {
         const last = _history[_history.length - 1];
-        Board.setLastMove({ from: last.slice(0, 2), to: last.slice(2, 4) });
+        // For a 960 castle the UCI "to" is the rook square; highlight the king's destination.
+        const toSq = lastResult.castle && lastResult.kingTo != null
+            ? idxToName(lastResult.kingTo) : last.slice(2, 4);
+        Board.setLastMove({ from: last.slice(0, 2), to: toSq });
         Board.applyLastTint();
     }
 
@@ -143,6 +169,7 @@ function _botLabel() {
 
 function _doBotMove() {
     if (_gameOver || !_bot) return;
+    const gen = _gen;              // if a new game starts, this callback is stale → bail
     _waiting = true;
     const status = document.getElementById("bot-status");
     if (status) { status.textContent = "Thinking…"; status.classList.add("bot-thinking"); }
@@ -151,6 +178,7 @@ function _doBotMove() {
     const legalUci = _game.legalMoves().map(_moveToUci);
 
     _bot.getBestMove(_game.fen(), remainingMs, legalUci).then((uci) => {
+        if (_gen !== gen) return;
         if (_gameOver || !uci) {
             _waiting = false;
             if (status) status.classList.remove("bot-thinking");
@@ -167,10 +195,22 @@ function _doBotMove() {
         _afterMove();
         _waiting = false;
         if (status) { status.textContent = _botLabel(); status.classList.remove("bot-thinking"); }
+        _tryPreMove();
     }).catch(() => {
+        if (_gen !== gen) return;
         _waiting = false;
         if (status) status.classList.remove("bot-thinking");
     });
+}
+
+// Play a queued pre-move if it's now the player's turn and still legal; else discard.
+function _tryPreMove() {
+    if (_gameOver || !_preMove || _game.turn !== _playerColor) return;
+    const { from, to } = _preMove;
+    _clearPreMove();
+    const legal = _game.legalMovesFrom(from).filter((m) => idxToName(m.to) === to);
+    if (!legal.length) return;                 // opponent's move made it illegal → discard
+    _executeMove(from, to, legal.some((m) => m.promotion) ? "q" : null);
 }
 
 function _moveToUci(m) {
@@ -179,8 +219,11 @@ function _moveToUci(m) {
 
 // ── Board interaction ───────────────────────────────────────────────────────
 function _onSquareTap(name) {
-    if (_gameOver || _waiting) return;
-    if (_game.turn !== _playerColor) return;
+    if (_gameOver) return;
+    // Opponent to move (bot thinking or about to move): queue/cancel a pre-move.
+    if (_game.turn !== _playerColor) { _onPreMoveTap(name); return; }
+    // Player to move but busy (own promotion picker open): ignore.
+    if (_waiting) return;
 
     const piece  = _game.board[nameToIdx(name)];
     const myTurn = _game.turn;
@@ -209,6 +252,22 @@ function _onSquareTap(name) {
     if (!isOwn) return;
     _selectedSq = name;
     Board.selectSquare(name, _game.legalMovesFrom(name));
+}
+
+// Pre-move selection (while it's the opponent's turn). No legality check yet — the
+// queued move is validated when the player's turn actually arrives (_tryPreMove).
+function _onPreMoveTap(name) {
+    const piece = _game.board[nameToIdx(name)];
+    const isOwn = piece && (_playerColor === "w" ? piece === piece.toUpperCase() : piece === piece.toLowerCase());
+    if (_preSel) {
+        if (_preSel === name) { _clearPreMove(); return; }   // tap source again → cancel
+        _preMove = { from: _preSel, to: name };
+        _preSel  = null;
+        Board.markPremove(_preMove.from, _preMove.to);
+        return;
+    }
+    if (isOwn) { _clearPreMove(); _preSel = name; Board.markPremove(name, null); }
+    else       { _clearPreMove(); }                          // tap empty/enemy → clear
 }
 
 function _executeMove(from, to, promotion) {
@@ -259,6 +318,7 @@ function _checkGameOver() {
 
 function _endGame(reason, winner) {
     _gameOver = true;
+    _clearPreMove();
     if (_clock) _clock.pause();
     localStorage.removeItem(GAME_KEY);
 
@@ -284,8 +344,8 @@ function _endGame(reason, winner) {
     if (_adaptive) {
         const { delta } = getEloStore().updateAfterGame(_bucketKey, score);
         eloDelta = delta;
-        goDelta.textContent = (delta >= 0 ? "+" : "") + delta + " Elo";
-        goDelta.className   = "elo-delta " + (delta >= 0 ? "pos" : "neg");
+        goDelta.textContent = delta === 0 ? "No rating change" : ((delta > 0 ? "+" : "") + delta + " Elo");
+        goDelta.className   = "elo-delta " + (delta === 0 ? "neutral" : delta > 0 ? "pos" : "neg");
         goDelta.hidden = false;
         refreshHome();
     } else {
@@ -481,6 +541,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Leaving mid-game keeps it paused (resume from Home). Game already saved.
         document.getElementById("promo-modal").hidden = true;
         _waiting = false;
+        _gen++;                     // invalidate any in-flight bot callback
+        _clearPreMove();
         if (_clock) _clock.pause();
         if (_bot) { _bot.quit(); _bot = null; }
         showScreen("screen-home");
@@ -489,9 +551,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-flip").addEventListener("click", () => {
         const orientation = Board.getOrientation() === "w" ? "b" : "w";
+        const lastMove = Board.getLastMove();   // buildBoard resets it — capture first
+        _clearPreMove();
         Board.buildBoard(_boardEl, orientation, _onSquareTap);
         Board.renderPieces(_game, _boardEl, _style);
-        if (Board.getLastMove()) Board.applyLastTint();
+        if (lastMove) { Board.setLastMove(lastMove); Board.applyLastTint(); }
         _setupClockDisplay();
     });
 

@@ -219,8 +219,20 @@ const Board = (() => {
     function clearHighlights() {
         if (!_container) return;
         _container.querySelectorAll(".square").forEach((s) =>
-            s.classList.remove("sq-sel", "sq-legal", "sq-legal-cap", "sq-last", "sq-check", "sq-wrong", "sq-hint")
+            s.classList.remove("sq-sel", "sq-legal", "sq-legal-cap", "sq-last", "sq-check", "sq-wrong", "sq-hint", "sq-premove")
         );
+    }
+
+    // Pre-move highlight (a move queued while it's the opponent's turn). `to` may
+    // be null when only the source square has been chosen.
+    function markPremove(from, to) {
+        clearPremove();
+        const f = _sq(from); if (f) f.classList.add("sq-premove");
+        if (to) { const t = _sq(to); if (t) t.classList.add("sq-premove"); }
+    }
+    function clearPremove() {
+        if (!_container) return;
+        _container.querySelectorAll(".sq-premove").forEach((s) => s.classList.remove("sq-premove"));
     }
 
     function applyLastTint() {
@@ -294,6 +306,7 @@ const Board = (() => {
         buildBoard, renderPieces, animateMove,
         selectSquare, deselect, clearHighlights, applyLastTint,
         markCheck, markWrong, markHints, flashConfirm, shakeWrong,
+        markPremove, clearPremove,
         whenPiecesReady, samplePiece,
         setOrientation, getOrientation,
         getPieceEl, getLastMove, setLastMove, clearPieces,

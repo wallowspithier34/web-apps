@@ -8,12 +8,15 @@ const TIMER_PRESETS = [
     { label: "2+1",    seconds: 120,  increment: 1 },
     { label: "3+2",    seconds: 180,  increment: 2 },
     { label: "5+0",    seconds: 300,  increment: 0 },
+    { label: "5+1",    seconds: 300,  increment: 1 },
+    { label: "5+5",    seconds: 300,  increment: 5 },
     { label: "10+0",   seconds: 600,  increment: 0 },
     { label: "15+10",  seconds: 900,  increment: 10 },
     { label: "30+0",   seconds: 1800, increment: 0 },
     { label: "None",   seconds: 0,    increment: 0 },
 ];
-const NO_TIMER_IDX = 7;
+// Derived so it stays correct if the preset list changes.
+const NO_TIMER_IDX = TIMER_PRESETS.findIndex((p) => p.seconds === 0);
 
 class ChessClock {
     constructor(initialSeconds, increment = 0) {

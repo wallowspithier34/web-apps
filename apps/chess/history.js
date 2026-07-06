@@ -15,6 +15,8 @@ function _resultLabel(game) {
 }
 
 function _tcLabel(game) {
+    // Prefer the stored bucket (authoritative; robust to preset-list changes).
+    if (game.bucket) return game.bucket.endsWith("blitz") ? "Blitz" : "Rapid";
     const base = TIMER_PRESETS[game.timerPreset] ? TIMER_PRESETS[game.timerPreset].seconds : 0;
     return timeControlTag(base) === "blitz" ? "Blitz" : "Rapid";
 }
@@ -39,7 +41,7 @@ function openHistory() {
             item.innerHTML =
                 `<span class="history-res ${res.cls}">${res.text}</span>
                  <span class="history-meta">
-                     <span class="history-line1">${variant} · ${_tcLabel(game)} · ${(game.moves || []).length} moves</span>
+                     <span class="history-line1">${variant} · ${_tcLabel(game)} · ${(game.moves || []).length} move${(game.moves || []).length === 1 ? "" : "s"}</span>
                      <span class="history-line2">${dateStr}${game.adaptive ? "" : " · unrated"}</span>
                  </span>
                  ${delta}
@@ -75,16 +77,20 @@ function openReplay(game) {
 
 function _renderReplay() {
     _rpGame = new Chess(_rpStartFen);
-    let lastUci = null;
+    let lastUci = null, lastResult = null;
     for (let i = 0; i < _rpIndex; i++) {
-        if (!_rpGame.move(Chess.parseUci(_rpMoves[i]))) break;
+        lastResult = _rpGame.move(Chess.parseUci(_rpMoves[i]));
+        if (!lastResult) break;
         lastUci = _rpMoves[i];
     }
     const boardEl = document.getElementById("replay-board");
     Board.renderPieces(_rpGame, boardEl, _rpStyle);
     Board.clearHighlights();
-    if (lastUci) {
-        Board.setLastMove({ from: lastUci.slice(0, 2), to: lastUci.slice(2, 4) });
+    if (lastUci && lastResult) {
+        // For a 960 castle the UCI "to" is the rook square; tint the king's destination.
+        const toSq = lastResult.castle && lastResult.kingTo != null
+            ? idxToName(lastResult.kingTo) : lastUci.slice(2, 4);
+        Board.setLastMove({ from: lastUci.slice(0, 2), to: toSq });
         Board.applyLastTint();
     } else {
         Board.setLastMove(null);

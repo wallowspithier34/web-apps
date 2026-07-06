@@ -25,11 +25,18 @@ No backend, no build step, no frameworks — plain HTML/CSS/JS, all state in
   the strength model), the rating settles wherever the player scores ~50%, so
   **wins and losses balance over time** (draws neutral). This is the canonical
   behavior: *the bot keeps re-tuning itself so the player wins and loses equally.*
-- To reach beginners, the bot must play **weaker than Stockfish's lowest Skill
-  Level (0)**. Below ~800 rating it pins Skill 0 and injects **blunders**: with a
-  probability that rises as the rating falls, it plays a uniformly random legal
-  move instead of the engine's choice (up to ~0.9 at rating 100), plus a shallow
-  depth cap at the very bottom.
+- **Weak play** is produced by two layers (`EloStore.strengthFromRating` +
+  `BotEngine`): the engine runs with **MultiPV** so it reports its top *N* moves,
+  and a `weakness` factor biases the actual choice toward the weaker candidates
+  (0 = always the best move; higher as the rating drops). This looks more human
+  than pure random play. To reach true beginners — **weaker than Stockfish's
+  lowest Skill Level (0)** — a small residual **random-move** probability kicks in
+  only at the very bottom (below ~500 rating), plus a shallow depth cap at the
+  extreme low end. This keeps arbitrarily-weak play reachable so the balance point
+  exists for everyone.
+- **Provisional rating.** A bucket's first games use a larger K-factor (80 for the
+  first 5 games, 48 up to 15, then the base 32) so a new player reaches their true
+  balance point in far fewer games before settling into small, stable adjustments.
 - **Manual** mode lets the player fix a Skill Level (0–20). Manual games are
   **unrated** — they never change any bucket's Elo.
 
@@ -49,9 +56,14 @@ No backend, no build step, no frameworks — plain HTML/CSS/JS, all state in
 3. At game end an overlay shows the result and (adaptive only) the Elo delta, with
    two actions: **Rematch** (new game, identical settings) and **Edit settings**
    (return Home to change settings for the next game).
+- **Pre-moves.** While it's the bot's turn (thinking or about to move), the player
+  may queue one move (tap piece → target); it is highlighted, then played
+  automatically the instant it becomes their turn if still legal, otherwise
+  discarded. Tapping the source again, or an empty/enemy square, cancels it.
 - Leaving mid-game via the back arrow keeps the game **paused** (resume from the
-  Home banner). Starting a *new* game while one is paused counts the paused game as
-  a **resignation** (rating loss if it was adaptive).
+  Home banner). Starting a *new* game while one is paused prompts an **in-app
+  confirm dialog** (not a system dialog) and, if confirmed, counts the paused game
+  as a **resignation** (rating loss if it was adaptive).
 
 ### Draw detection
 Games end in a draw on **stalemate**, **threefold repetition** (position identity =
@@ -131,51 +143,18 @@ Plain `<script>` files loaded in order by `index.html`:
 1. **Stats tab** — visualize the per-bucket progression history: Elo over time
    (e.g. last year) and over the last N games, plus win/loss/draw breakdowns.
    Data is already recorded in `chess-v2:elo` bucket histories.
-2. **Pre-moves vs bot** — let the player queue a move while the engine is thinking,
-   played instantly when it becomes their turn.
-3. **Smarter weak play** — replace pure random blunder injection with MultiPV
-   weighted sampling (choose among the top-K engine moves, biased toward weaker
-   ones) so sub-Skill-0 play feels more human and less erratic.
-4. **Strength calibration** — tune `strengthFromRating` constants against observed
-   win rates so the displayed Elo tracks real playing strength more closely (the
-   adaptive loop already balances results regardless).
+2. **Manual difficulty → Elo** — manual mode currently sets the Stockfish Skill
+   Level (0–20) directly; change it to a target-**Elo** control routed through
+   `strengthFromRating` (fixed strength, still unrated) so it lines up with the
+   adaptive rating scale.
 
-## Known bugs (audit 2026-07-06)
+## Resolved
 
-Ordered roughly by impact. All confirmed against current code; none block play.
-
-1. **Slow adaptive convergence for new players** — new buckets start at 1200 with
-   `K = 32` (±16/game). A true beginner must lose ~25 games before the rating
-   drops below ~800 where blunder injection makes the bot beginner-friendly, so
-   early games feel one-sided before wins/losses balance. Consider a provisional
-   phase (larger K or faster drop) or a lower/likelier starting rating. Relates to
-   Backlog #4. [`elo.js` `DEFAULT_ELO`, `K_FACTOR`, `strengthFromRating`]
-2. **Resign "Sure?" state leaks into the next game** — the two-tap resign sets
-   `dataset.confirm` and only self-clears after 5 s; `_newGame`/Rematch don't reset
-   it. Starting a new game within that window leaves the button primed, so a single
-   tap can instantly forfeit the fresh game. Reset the button in `_newGame`.
-   [`play.js:498-509` btn-resign, `play.js:61` `_newGame`]
-3. **Stale bot-move timer can fire on a new game** — `_executeMove` schedules
-   `setTimeout(_doBotMove, 200)`. If the player leaves and starts another game
-   within ~200 ms, the old timer can fire against the new `_game`/`_bot` and request
-   an extra bot move. Guard with a per-game token or clear the timeout on teardown.
-   [`play.js:226`]
-4. **`bestmove (none)` returns the string "(none)", not null** — `line.split(" ")[1]
-   || null` keeps the truthy `"(none)"`, contrary to its comment. Currently
-   unreachable (the game ends before the bot is asked to move in a terminal
-   position) and it degrades gracefully via the null-`animateMove` fallback, but the
-   parse should treat `(none)` as null. [`bot.js:62`]
-5. **Flip button drops the last-move highlight** — `Board.buildBoard` resets
-   `_lastMove = null` (`board.js:62`), so the `if (Board.getLastMove())` guard right
-   after it is always false and the from/to tint is lost after flipping. Capture the
-   last move before rebuilding, then re-apply. [`play.js:490-496`]
-6. **Chess960 castle highlight lands on the rook square in resume/replay** — live
-   play tints the king's destination (`board.js:164` uses `kingTo`), but resume and
-   the replay viewer derive the "to" square from the raw UCI (`slice(2,4)`), which
-   for a 960 castle is the rook's start square. Cosmetic mismatch only.
-   [`play.js:108`, `history.js:87`]
-7. **Adaptive draw shows "+0 Elo" in green** — a drawn adaptive game has `delta = 0`;
-   the overlay renders `"+0 Elo"` with the positive (green) class. Show plain `0`
-   (or hide it) for draws. [`play.js:287-288`]
-8. **History pluralization** — the list always reads "N moves", e.g. "1 moves".
-   [`history.js:42`]
+- **Backlog implemented** (see Intended operation): pre-moves vs bot; MultiPV
+  weighted weak play with a residual random-move floor; provisional-K faster
+  convergence + recalibrated `strengthFromRating`.
+- **Known-bugs audit 2026-07-06** — all 8 items fixed: slow convergence
+  (provisional K), resign-confirm leak (reset in `_newGame`), stale bot-move
+  callback (`_gen` guard), `bestmove (none)` parsing, flip last-move highlight,
+  960 castle highlight in resume/replay, adaptive-draw Elo label, history
+  pluralization.

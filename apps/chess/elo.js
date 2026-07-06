@@ -102,10 +102,14 @@ class EloStore {
 
     // Record an adaptive game result and update the bucket's rating.
     // result: 1 = player win, 0.5 = draw, 0 = player loss.
+    // A provisional (larger) K-factor for a bucket's first games lets the rating
+    // reach the player's true balance point faster, then settles to the base K.
     updateAfterGame(key, result) {
         const b = this._bucket(key);
         const pre = b.elo;
-        const delta = Math.round(K_FACTOR * (result - 0.5)); // opponent == self → expected 0.5
+        const played = b.gamesPlayed || 0;
+        const k = played < 5 ? 80 : played < 15 ? 48 : K_FACTOR;
+        const delta = Math.round(k * (result - 0.5)); // opponent == self → expected 0.5
         b.elo = Math.max(100, Math.min(3000, pre + delta));
         b.gamesPlayed = (b.gamesPlayed || 0) + 1;
         b.history.push({
@@ -122,23 +126,34 @@ class EloStore {
 
     // ── Strength model ─────────────────────────────────────────────────────────
     // Convert a rating to concrete engine controls. Two regimes:
-    //   • elo ≥ 800  ("engine"):   Stockfish Skill Level 0–20 + scaled movetime.
-    //   • elo < 800  ("beginner"): Skill 0 plus a rising blunder probability that
-    //     plays a uniformly random legal move — this is how the bot goes *below*
-    //     Stockfish's weakest setting so a true beginner can still reach ~50%.
+    //   • elo ≥ 800  ("engine"):   Stockfish Skill Level 0–20 + scaled movetime,
+    //     with mild MultiPV sampling (weakness) so mid-strength play isn't razor
+    //     sharp.
+    //   • elo < 800  ("beginner"): Skill 0, heavier MultiPV weakness, and — only at
+    //     the very bottom — a residual random-move probability so a true beginner
+    //     can still reach ~50%. MultiPV picks plausible-but-imperfect moves (more
+    //     human than pure random); the random floor guarantees reachable weakness.
     // Strength increases monotonically with elo, which is what makes the adaptive
     // loop converge.
+    //
+    // Returns { skill, movetime, multipv, weakness, blunderProb, depthCap }:
+    //   multipv    — number of candidate lines to request from the engine
+    //   weakness   — 0..1, bias toward weaker candidates (0 = always the best move)
+    //   blunderProb — chance of a fully random legal move (bottom ratings only)
     static strengthFromRating(elo) {
-        elo = Math.max(100, Math.min(3000, elo));
+        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+        elo = clamp(elo, 100, 3000);
         if (elo >= 800) {
-            const skill    = Math.max(0, Math.min(20, Math.round((elo - 800) / 100)));
-            const movetime = Math.max(100, Math.min(1500, Math.round(100 + (elo - 800) * 0.6)));
-            return { skill, movetime, blunderProb: 0, depthCap: 0 };
+            const skill    = clamp(Math.round((elo - 800) / 100), 0, 20);
+            const movetime = clamp(Math.round(100 + (elo - 800) * 0.6), 100, 1500);
+            const multipv  = elo >= 2000 ? 1 : elo >= 1400 ? 2 : 3;
+            const weakness = clamp((2000 - elo) / 1200, 0, 0.6);
+            return { skill, movetime, multipv, weakness, blunderProb: 0, depthCap: 0 };
         }
-        const t = (800 - elo) / 700;                 // 0 at elo 800 → 1 at elo 100
-        const blunderProb = Math.min(0.9, t * 0.9);
-        const depthCap    = elo < 400 ? 1 : 0;        // extra dumbing at the very bottom
-        return { skill: 0, movetime: 80, blunderProb, depthCap };
+        const weakness    = clamp(0.6 + (800 - elo) / 700 * 0.4, 0.6, 1);
+        const blunderProb = elo < 500 ? clamp((500 - elo) / 400 * 0.7, 0, 0.7) : 0;
+        const depthCap    = elo < 300 ? 1 : 0;
+        return { skill: 0, movetime: 80, multipv: 4, weakness, blunderProb, depthCap };
     }
 
     // Movetime for a fixed manual Skill Level (no clock running).
