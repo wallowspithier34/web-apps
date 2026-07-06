@@ -139,3 +139,43 @@ Plain `<script>` files loaded in order by `index.html`:
 4. **Strength calibration** — tune `strengthFromRating` constants against observed
    win rates so the displayed Elo tracks real playing strength more closely (the
    adaptive loop already balances results regardless).
+
+## Known bugs (audit 2026-07-06)
+
+Ordered roughly by impact. All confirmed against current code; none block play.
+
+1. **Slow adaptive convergence for new players** — new buckets start at 1200 with
+   `K = 32` (±16/game). A true beginner must lose ~25 games before the rating
+   drops below ~800 where blunder injection makes the bot beginner-friendly, so
+   early games feel one-sided before wins/losses balance. Consider a provisional
+   phase (larger K or faster drop) or a lower/likelier starting rating. Relates to
+   Backlog #4. [`elo.js` `DEFAULT_ELO`, `K_FACTOR`, `strengthFromRating`]
+2. **Resign "Sure?" state leaks into the next game** — the two-tap resign sets
+   `dataset.confirm` and only self-clears after 5 s; `_newGame`/Rematch don't reset
+   it. Starting a new game within that window leaves the button primed, so a single
+   tap can instantly forfeit the fresh game. Reset the button in `_newGame`.
+   [`play.js:498-509` btn-resign, `play.js:61` `_newGame`]
+3. **Stale bot-move timer can fire on a new game** — `_executeMove` schedules
+   `setTimeout(_doBotMove, 200)`. If the player leaves and starts another game
+   within ~200 ms, the old timer can fire against the new `_game`/`_bot` and request
+   an extra bot move. Guard with a per-game token or clear the timeout on teardown.
+   [`play.js:226`]
+4. **`bestmove (none)` returns the string "(none)", not null** — `line.split(" ")[1]
+   || null` keeps the truthy `"(none)"`, contrary to its comment. Currently
+   unreachable (the game ends before the bot is asked to move in a terminal
+   position) and it degrades gracefully via the null-`animateMove` fallback, but the
+   parse should treat `(none)` as null. [`bot.js:62`]
+5. **Flip button drops the last-move highlight** — `Board.buildBoard` resets
+   `_lastMove = null` (`board.js:62`), so the `if (Board.getLastMove())` guard right
+   after it is always false and the from/to tint is lost after flipping. Capture the
+   last move before rebuilding, then re-apply. [`play.js:490-496`]
+6. **Chess960 castle highlight lands on the rook square in resume/replay** — live
+   play tints the king's destination (`board.js:164` uses `kingTo`), but resume and
+   the replay viewer derive the "to" square from the raw UCI (`slice(2,4)`), which
+   for a 960 castle is the rook's start square. Cosmetic mismatch only.
+   [`play.js:108`, `history.js:87`]
+7. **Adaptive draw shows "+0 Elo" in green** — a drawn adaptive game has `delta = 0`;
+   the overlay renders `"+0 Elo"` with the positive (green) class. Show plain `0`
+   (or hide it) for draws. [`play.js:287-288`]
+8. **History pluralization** — the list always reads "N moves", e.g. "1 moves".
+   [`history.js:42`]
