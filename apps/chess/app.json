@@ -1,7 +1,7 @@
 {
     "name": "Chess",
-    "description": "Chess — openings trainer, pass-and-play, and bot mode with Stockfish.",
+    "description": "Play chess against a self-tuning Stockfish bot — Standard & Chess960, adaptive Elo.",
     "icon": "icon.svg",
-    "color": "#c8903a",
+    "color": "#7c5e3c",
     "tags": ["game"]
 }
