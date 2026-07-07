@@ -7,29 +7,25 @@ const GAME_KEY  = "chess-v2:game";
 // Board colour themes (light-friendly, warm editorial palette). Values feed the
 // [data-board] CSS selectors in styles.css. Default is "classic".
 const BOARD_THEMES = [
-    { id: "classic", label: "Classic", light: "#f0d9b5", dark: "#b58863" },
-    { id: "walnut",  label: "Walnut",  light: "#e8cfa6", dark: "#9c6b43" },
-    { id: "coffee",  label: "Coffee",  light: "#d9c3a5", dark: "#6f4e37" },
-    { id: "forest",  label: "Forest",  light: "#ebecd0", dark: "#779556" },
-    { id: "ocean",   label: "Ocean",   light: "#dbe6ec", dark: "#6f92a8" },
-    { id: "slate",   label: "Slate",   light: "#dcdce4", dark: "#8892a6" },
+    { id: "classic",  label: "Classic",  light: "#f0d9b5", dark: "#b58863" },
+    { id: "walnut",   label: "Walnut",   light: "#e8cfa6", dark: "#9c6b43" },
+    { id: "forest",   label: "Forest",   light: "#ebecd0", dark: "#779556" },
+    { id: "ocean",    label: "Ocean",    light: "#dbe6ec", dark: "#6f92a8" },
+    { id: "rose",     label: "Rose",     light: "#f3dbe0", dark: "#b56b82" },
+    { id: "amethyst", label: "Amethyst", light: "#e3dcf2", dark: "#8267a8" },
 ];
 
 const PIECE_STYLES = [
-    { id: "cburnett",  label: "CBurnett" },
     { id: "merida",    label: "Merida" },
+    { id: "cburnett",  label: "CBurnett" },
     { id: "maestro",   label: "Maestro" },
-    { id: "modern",    label: "Modern" },
-    { id: "shaded",    label: "Shaded" },
-    { id: "flat",      label: "Flat" },
     { id: "pixel",     label: "Pixel" },
-    { id: "classic",   label: "Classic" },
     { id: "letters",   label: "Letters" },
 ];
 
 const DEFAULT_PREFS = {
-    theme: "light",
-    pieces: "cburnett",
+    theme: "dark",
+    pieces: "merida",
     board:  "classic",
     variant: "standard",
     timerPreset: 6,                              // 10+0 → "long" bucket

@@ -29,7 +29,7 @@ activity is human-vs-bot.
   changes.
 - **Themes are normally fixed** — this app carries a *documented exception*: a manual
   light/dark toggle (see §5). It never reads `prefers-color-scheme`; the default is a
-  fixed light theme and the user switches manually.
+  fixed **dark** theme and the user switches manually.
 - Account for iOS safe-area insets on full-screen chrome.
 
 ---
@@ -110,8 +110,8 @@ Result colors: `--win #2f7d32` · `--loss #b23b3b` · `--draw #8a7642`.
 `--legal-dot`, `--last-bg`, `--chk-bg`, `--wrong-bg`, `--hint-bg`. Pre-move squares
 use a fixed warm orange (`rgba(220,120,40,.5)` + outline).
 
-**Piece fills** (only the inline-SVG "modern" set uses these; image sets carry their
-own colors): `--pw`, `--pb`, `--pw-edge`, `--pb-edge`.
+**Piece fills** (`--pw`, `--pb`, `--pw-edge`, `--pb-edge`) — reserved for
+color-via-CSS piece rendering; the current image sets carry their own colors.
 
 **Board color themes** — set `--sq-light`/`--sq-dark`/`--last-edge` via
 `[data-board="…"]` on `#app`:
@@ -120,10 +120,10 @@ own colors): `--pw`, `--pb`, `--pw-edge`, `--pb-edge`.
 |----|----------|---------|
 | `classic` (default) | `#f0d9b5` | `#b58863` |
 | `walnut` | `#e8cfa6` | `#9c6b43` |
-| `coffee` | `#d9c3a5` | `#6f4e37` |
 | `forest` | `#ebecd0` | `#779556` |
 | `ocean` | `#dbe6ec` | `#6f92a8` |
-| `slate` | `#dcdce4` | `#8892a6` |
+| `rose` | `#f3dbe0` | `#b56b82` |
+| `amethyst` | `#e3dcf2` | `#8267a8` |
 
 **Layout:** `#app` is a max-520 px centered flex column. `.screen` is
 `min-height:100dvh`. The play screen top bar + top clock hug the board; the
@@ -247,8 +247,9 @@ per bucket. This supports charting Elo over time or over the last N games; the
   move is "free"). After each move the mover's remaining time is decremented and the
   increment added, then the opponent's clock starts (`ChessClock.switch`).
 - Flagging (`onFlag`) ends the game as `"flag"`, opponent wins on time.
-- Bot movetime respects the clock: when a clock is running, movetime is capped at
-  `min(5% of remaining, 3000 ms)` (`getBestMove`).
+- Bot think time is `strength.movetime` (scales with rating, ≤ 1500 ms), and when a
+  clock is running it is additionally capped at `10% of remaining` so the bot never
+  flags. This keeps Blitz fast (no flat multi-second thinks); see `getBestMove`.
 
 ### 5.8 Draw detection (`_checkGameOver`)
 After each move, in order: no legal moves ⇒ checkmate/stalemate; then
@@ -262,8 +263,8 @@ All draws score 0.5. Real move counters are tracked by the engine and written in
 the FEN sent to Stockfish.
 
 ### 5.9 Settings, history, data
-- **Settings** (gear): theme toggle (`body.dark`), piece style (9; default
-  `cburnett`), board color (6; default `classic`), per-bucket rating display + manual
+- **Settings** (gear): theme toggle (`body.dark`), piece style (5; default
+  `merida`), board color (6; default `classic`), per-bucket rating display + manual
   edit, a link to Game History, export/import save, and reset-all-data (double
   confirm; wipes every `chess`-prefixed key).
 - **History:** newest-first list of finished games; tap to open the **replay** viewer
@@ -336,10 +337,9 @@ Each piece is `12.5% × 12.5%` and positioned with
 `transform: translate(col·800%, row·800%)` (800% of 12.5% = one square). Orientation
 is tracked internally (`"w"` = white at bottom).
 
-**Piece sets:** image sets `IMG_SETS = [pixel, cburnett, merida, maestro, shaded,
-flat]` (`shaded`/`flat` are PNG via `PNG_SETS`; the rest SVG `<img>`); plus three
-inline styles — `modern` (inline `PIECE_SVG`, colored via `--pw`/`--pb`/edges),
-`classic` (Unicode `GLYPH`), `letters` (letter text).
+**Piece sets:** image sets `IMG_SETS = [pixel, cburnett, merida, maestro]` (SVG
+`<img>`), plus the inline `letters` style (letter text via `LETTER`). `_pieceInner`
+picks image vs letters.
 
 **API:** `buildBoard(container, orientation, onSquareTap)`,
 `renderPieces(game, container, style)`, `animateMove(game, uci, style) → moveResult`
@@ -403,8 +403,8 @@ Wraps `stockfish.js` in a Web Worker. UCI flow:
   `UCI_Chess960 true` for 960.
 - `getBestMove(fen, remainingMs = 0, legalUci = null)` — resets `_pv`, queues the
   request, sends `position fen` + `go`. `go` is `go depth <depthCap>` when a depth cap
-  is set, else `go movetime <mt>` where `mt = remainingMs>0 ? min(5%,3000) : movetime`
-  (floor 20 ms).
+  is set, else `go movetime <mt>` where `mt = strength.movetime`, capped at
+  `10% of remaining` when a clock is running (floor 20 ms).
 - `_onMsg(line)` — parses `info … multipv K … pv <move>` lines into `_pv[K-1]`; on
   `bestmove` treats `(none)` as null and resolves via `_selectMove`.
 - `_selectMove(best, legalUci)` — blunder (random legal) with `blunderProb`, else
@@ -414,8 +414,8 @@ Wraps `stockfish.js` in a Web Worker. UCI flow:
 ### 6.6 `home.js`
 
 Keys: `PREFS_KEY = "chess-v2:prefs"`, `GAME_KEY = "chess-v2:game"`.
-Constants: `BOARD_THEMES` (6, §4), `PIECE_STYLES` (9), `DEFAULT_PREFS =
-{ theme:"light", pieces:"cburnett", board:"classic", variant:"standard",
+Constants: `BOARD_THEMES` (6, §4), `PIECE_STYLES` (5), `DEFAULT_PREFS =
+{ theme:"dark", pieces:"merida", board:"classic", variant:"standard",
 timerPreset:6 /* 10+0 */, difficulty:{mode:"adaptive", skill:8} }`. `RATING_GROUPS`
 (Standard/Chess960 cards) and `RATING_EDIT_ROWS` (the four Settings rating rows).
 
@@ -490,10 +490,10 @@ legacy Markdown ```json block), unwraps `{data}`, confirms, restores every
 
 `CACHE = "chess-v17"` (bump on any cached-file change; older names in `OLD_CACHES`
 are deleted on activate). `ASSETS` precaches: `./`, `index.html`, `styles.css`,
-`manifest.json`, `icon.svg`, all JS modules, `stockfish.js`, and the six image piece
-sets (`pixel`, `cburnett`, `merida`, `maestro` = SVG; `shaded`, `flat` = PNG; 12 files
-each). Strategy: **cache-first** for same-origin GETs, caching network responses on
-miss. `modern`/`classic`/`letters` piece styles need no assets (rendered inline).
+`manifest.json`, `icon.svg`, all JS modules, `stockfish.js`, and the four SVG piece
+sets (`pixel`, `cburnett`, `merida`, `maestro`; 12 files each). Strategy:
+**cache-first** for same-origin GETs, caching network responses on miss. The
+`letters` piece style needs no assets (rendered inline).
 
 ---
 
@@ -564,56 +564,6 @@ draw/checkmate/flag detection; theme toggle + board themes; no console errors, n
    (0–20) directly; change it to a target-**Elo** control routed through
    `strengthFromRating` (fixed strength, still unrated) so it lines up with the
    adaptive rating scale.
-3. **Captured-pieces tray uses the wrong symbol/color** — `_CAP_GLYPH` (`play.js:436`)
-   hardcodes one fixed Unicode glyph per piece type (`♟♞♝♜♛`, the "black/filled"
-   code points) for **both** colors, then recolors via CSS (`.cap-w`/`.cap-b` in
-   `styles.css`) rather than rendering the player's chosen piece style. On some
-   platforms/fonts these code points fall back to a font that ignores the
-   `color`/`text-shadow` override and/or substitutes a differently-shaped glyph, so
-   the tray can show the wrong symbol shape and the wrong color at the same time.
-   Fix by rendering the tray with the same piece-style assets used on the board
-   (`Board.samplePiece`-style small icons) instead of bare Unicode text.
-4. **Remove the legacy `chess-openings` trainer app** — `apps/chess-openings/` is a
-   separate, older single-purpose opening trainer that predates this app and is now
-   fully superseded by it (this app never carried its Opening Trainer forward — see
-   §12 2026-07-06 rebuild). Removal touches: delete `apps/chess-openings/`; drop it
-   from `apps/index.json` and the `README.md` app catalog / architecture section;
-   confirm no other app reads its `chess-openings-trainer:v2` / `chess-openings-prefs`
-   localStorage keys before deleting (this app's `home.js` currently has no migration
-   path *from* those keys — verify none remains — only the reverse was true
-   historically).
-5. **Change the defaults: dark theme + Merida pieces** — `DEFAULT_PREFS` in
-   `home.js:30-37` currently defaults to `theme:"light"` and `pieces:"cburnett"`;
-   change to `theme:"dark"` and `pieces:"merida"`. Also update `manifest.json`
-   (`background_color`/`theme_color`, currently the light `#f5f0d0`) and
-   `<meta name="theme-color">` in `index.html` to the dark value so the PWA chrome
-   matches on first launch, and re-check `icon.svg` still reads well as the default
-   (it's already black-background, so no change needed there).
-6. **Trim piece styles to 5** — remove `shaded`, `modern`, `classic`, and `flat` from
-   `PIECE_STYLES` (`home.js:18-28`); keep `cburnett`, `merida`, `maestro`, `pixel`,
-   `letters`. Also remove the now-unused `shaded`/`flat` PNG assets
-   (`pieces/shaded/`, `pieces/flat/`, 12 files each) and their entries in `sw.js`
-   `ASSETS`, and any CSS rules keyed to the removed styles
-   (`.piece.ps-modern`, `.piece.ps-classic`) in `styles.css`. If a saved pref
-   references a removed style, `loadPrefs`'s existing fallback
-   (`if (!PIECE_STYLES.find(...)) _prefs.pieces = DEFAULT_PREFS.pieces`) already
-   handles it.
-7. **Bot thinks too long in blitz time controls** — `BotEngine.getBestMove`
-   (`bot.js:116-119`) caps movetime at `min(5% of remaining, 3000ms)` regardless of
-   the base time control. For fast presets (`1+0` through `5+5`, all ≤ 300 s base)
-   this lets the bot spend up to a full 3 seconds on *every* move for nearly the
-   whole game (5% of remaining stays ≥ 3000 ms until under a minute is left), which
-   is disproportionately slow relative to the player's own clock. Fix by scaling the
-   cap to the time control — e.g. cap at a fraction of the *preset's* base time
-   (not just a flat 3000 ms), or pass the base time control into `BotEngine.init`
-   so it can pick a tighter ceiling for Blitz-bucket games.
-8. **Replace the Coffee and Slate board themes** — `Coffee` (`#d9c3a5`/`#6f4e37`) is
-   too close to `Walnut` (`#e8cfa6`/`#9c6b43`), and `Slate` (`#dcdce4`/`#8892a6`) is
-   too close to `Ocean` (`#dbe6ec`/`#6f92a8`) (`home.js` `BOARD_THEMES`,
-   `styles.css` `[data-board]` rules). Remove both and add two new, clearly
-   distinct board color themes in their place (six total, kept in sync between
-   `BOARD_THEMES` and the CSS `[data-board="…"]` rules, each with its own
-   `--last-edge` accent that contrasts with its squares per the existing pattern).
 
 ---
 
@@ -633,3 +583,9 @@ draw/checkmate/flag detection; theme toggle + board themes; no console errors, n
   resign-confirm leak (reset in `_newGame`), stale bot-move callback (`_gen` guard),
   `bestmove (none)` parsing, flip last-move highlight, 960 castle highlight in
   resume/replay, adaptive-draw Elo label, and history/resume-banner pluralization.
+- **2026-07-07 — polish batch (backlog #3–8).** Captured-pieces tray now renders with
+  the selected piece style (was hardcoded Unicode + CSS recolor); bot think time
+  scaled to the clock so Blitz is fast (no flat 3 s/move); defaults changed to **dark**
+  theme + **Merida** pieces; piece styles trimmed to 5 (removed shaded/modern/classic/
+  flat + their assets); board themes Coffee/Slate replaced with **Rose**/**Amethyst**;
+  removed the superseded standalone `apps/chess-openings/` app (index.json + README).

@@ -10,41 +10,10 @@
 
 // ── Piece content definitions ─────────────────────────────────────────────
 
-const GLYPH = {
-    K:"♚", Q:"♛", R:"♜", B:"♝", N:"♞", P:"♟",
-    k:"♚", q:"♛", r:"♜", b:"♝", n:"♞", p:"♟",
-};
 const LETTER = { K:"K", Q:"Q", R:"R", B:"B", N:"N", P:"P" };
 
-const PIECE_SVG = {
-    P: `<circle cx="22.5" cy="14" r="5.4"/>
-        <path d="M17.6 19.2q4.9 3 9.8 0l1.7 10.8h-13.2z"/>
-        <rect x="12.5" y="29" width="20" height="6.4" rx="2.6"/>`,
-    R: `<path d="M12 13.5h3.4v2.6h3v-2.6h3.6v2.6h3v-2.6h3.4v8l-2.2 2.2v6.4l2.2 2.2v1.6h-19.4v-1.6l2.2-2.2v-6.4l-2.2-2.2z"/>
-        <rect x="9.5" y="31.5" width="25" height="5.6" rx="1.9"/>`,
-    N: `<path d="M13.5 37.5v-4.6c0-6.8 2-9.8 6.7-13.1l-1.7-2.7-2.6 1.7c-1-2.7 1.2-6.3 5.2-8l1.9-3.6 1.2 3.6c5 1 8.9 5.6 8.9 12.9v13.4z"/>
-        <circle cx="26.2" cy="16.4" r="1.15" class="eye"/>`,
-    B: `<circle cx="22.5" cy="9" r="2.3"/>
-        <path d="M22.5 11C15.5 14.5 16 23 18.4 28h8.2C29 23 29.5 14.5 22.5 11z"/>
-        <rect x="20.9" y="15.5" width="3.2" height="1.4" rx="0.6" class="slit"/>
-        <rect x="21.8" y="14.6" width="1.4" height="3.2" rx="0.6" class="slit"/>
-        <ellipse cx="22.5" cy="29" rx="7.2" ry="2"/>
-        <rect x="13" y="31.3" width="19" height="5.8" rx="1.9"/>`,
-    Q: `<circle cx="10.5" cy="13" r="2.3"/><circle cx="16.5" cy="10.2" r="2.3"/>
-        <circle cx="22.5" cy="9.2" r="2.5"/><circle cx="28.5" cy="10.2" r="2.3"/>
-        <circle cx="34.5" cy="13" r="2.3"/>
-        <path d="M10.5 13l4.3 15h15.4l4.3-15-5 9-4.5-11-2.5 12.5-2.5-12.5-4.5 11z"/>
-        <path d="M13.5 27.5q9 3.2 18 0l1.4 4h-20.8z"/>
-        <rect x="11" y="31" width="23" height="6.2" rx="2"/>`,
-    K: `<path d="M20.8 5.5h3.4v3h3v3.4h-3v3h-3.4v-3h-3v-3.4h3z"/>
-        <path d="M14.5 28.5C12 22.5 15.5 16 22.5 16s10.5 6.5 8 12.5z"/>
-        <path d="M13.8 28q8.7 3.2 17.4 0l1.4 4h-20.2z"/>
-        <rect x="11" y="31.4" width="23" height="6.2" rx="2"/>`,
-};
-
-// Image-based piece sets. PNG_SETS load .png files; the rest load .svg.
-const PNG_SETS = ["shaded", "flat"];
-const IMG_SETS = ["pixel", "cburnett", "merida", "maestro", ...PNG_SETS];
+// Image-based piece sets (all SVG, loaded via <img>).
+const IMG_SETS = ["pixel", "cburnett", "merida", "maestro"];
 
 // ── Board module ──────────────────────────────────────────────────────────
 
@@ -96,20 +65,14 @@ const Board = (() => {
     // Build the innerHTML for one piece in the current style.
     // sz: explicit pixel size for SVGs (used in sample-piece context).
     function _pieceInner(char, style, sz = null) {
-        const type  = char.toUpperCase();
-        const wh    = sz ? ` width="${sz}" height="${sz}"` : "";
+        const type = char.toUpperCase();
         if (IMG_SETS.includes(style)) {
-            const ext  = PNG_SETS.includes(style) ? ".png" : ".svg";
-            const file = (char === char.toUpperCase() ? "w" : "b") + type + ext;
+            const file = (char === char.toUpperCase() ? "w" : "b") + type + ".svg";
             const dim  = sz ? ` width="${sz}" height="${sz}"` : ``;
             return { html: `<img class="piece-img"${dim} src="./pieces/${style}/${file}" alt="" draggable="false">` };
         }
-        if (style === "classic") return { text: GLYPH[char] };
-        if (style === "letters") return { html: `<span class="piece-letter">${LETTER[type]}</span>` };
-        if (style === "modern") {
-            return { html: `<svg viewBox="0 0 45 45"${wh} aria-hidden="true">${PIECE_SVG[type]}</svg>` };
-        }
-        return { text: LETTER[type] };
+        // "letters" style (the only non-image style remaining).
+        return { html: `<span class="piece-letter">${LETTER[type]}</span>` };
     }
 
     // Render all pieces from the Chess engine board onto the DOM board.

@@ -168,8 +168,8 @@ const ASSETS = ["./", "./index.html", "./styles.css", "./script.js",
 ### Persistence
 
 Apps that store state use `localStorage`, keyed with an app-specific prefix to
-avoid collisions on the shared origin (e.g. `posts-dark`,
-`chess-openings-trainer:v2`, `chess-openings-prefs`). Always namespace your keys.
+avoid collisions on the shared origin (e.g. `posts-dark`, `chess-v2:elo`,
+`chess-v2:prefs`). Always namespace your keys.
 
 ---
 
@@ -196,49 +196,13 @@ confirm assets load, and confirm `localStorage` survives a refresh.
 | Slug                | Name                    | Notes |
 |---------------------|-------------------------|-------|
 | `analog-clock`      | Analog Clock            | Live analog clock; single `script.js`. |
-| `chess`             | Chess                   | Single-purpose **play-vs-bot** app (Stockfish, fully offline). **Standard** and **Chess960** (authentic Fischer-random castling), each rated separately, and each split by time control (≤5 min "Blitz" vs longer "Rapid") → four Elo buckets. The bot is **self-tuning**: it re-targets your rating every game (weakening *below* Stockfish's lowest Skill Level via blunder injection) so wins and losses balance over time; an optional **Manual** skill (0–20) plays unrated. Every rated game stores a progression entry (timestamp + game number + resulting Elo) for a future Stats tab. Game history with replay, export/import save (JSON). Warm-beige **Semafor** aesthetic (Georgia serif) with a manual **light/dark** toggle (an intentional exception to the fixed-theme rule — no `prefers-color-scheme`). 9 piece styles (CBurnett default) and 6 board themes (beige/brown "Classic" default). See `apps/chess/DESIGN.md` for the full design + backlog. |
-| `chess-openings`    | Chess Openings Trainer  | The largest app — see below. |
+| `chess`             | Chess                   | Single-purpose **play-vs-bot** app (Stockfish, fully offline). **Standard** and **Chess960** (authentic Fischer-random castling), each rated separately, and each split by time control (≤5 min "Blitz" vs longer "Rapid") → four Elo buckets. The bot is **self-tuning**: it re-targets your rating every game (weakening *below* Stockfish's lowest Skill Level via MultiPV/blunder injection) so wins and losses balance over time; an optional **Manual** skill (0–20) plays unrated. Every rated game stores a progression entry (timestamp + game number + resulting Elo) for a future Stats tab. Game history with replay, export/import save (JSON). **Semafor** aesthetic (Georgia serif) with a manual **light/dark** toggle (an intentional exception to the fixed-theme rule — no `prefers-color-scheme`); dark is the default. 5 piece styles (Merida default) and 6 board themes (Classic default). See `apps/chess/DESIGN.md` for the full design + backlog. |
 | `posts`             | Posts                   | Markdown reader (`markdown.js` + `posts/`), reader settings, opt-in dark mode (`posts-dark`). |
 | `solitaire`         | Solitaire               | Klondike; ~33 KB single-file game engine in `script.js`. |
 
-### `chess-openings` architecture
-
-A Duolingo-style openings trainer; the most complex app, split across several
-plain `<script>` files (loaded in order in `index.html`). It drills **positions**
-("situations"), not whole opening sequences: each opening mainline is decomposed
-into the positions where it's your turn, and you learn the correct *response* to
-each. Positions are deduplicated across openings and their book responses are
-**pooled** — any book move from a position is accepted — so the same situation
-never has a move that's right in one opening and wrong in another:
-
-- **`chess.js`** — a self-contained chess rules engine (`Chess` class on
-  `window`): board representation, full legal-move generation (castling, en
-  passant, promotion, check filtering), and SAN. Used for move validation and
-  legal-move highlighting.
-- **`openings.js`** — `OPENINGS`, an array of ~32 openings (both colors, tiers
-  1–4) with ECO codes and annotated move lists (the source mainlines).
-- **`srs.js`** — builds the deduped position graph (`POSITIONS`,
-  `POSITION_BY_KEY`, `OPENING_CARDS`, and `OPENING_LINE` — each opening's cards
-  paired with the move *it* plays there) from `OPENINGS`, and the `Store` class:
-  per-position SM-2 spaced repetition, tier unlocking (a position's tier reflects
-  how common it is — it inherits the most-played opening that reaches it), and
-  `localStorage` persistence. Per-opening progress keys off the specific response
-  played (recorded per card), so studying one line only credits the moves it
-  actually teaches — shared transposition positions aren't credited to a sibling
-  opening you haven't drilled. Progress key: `chess-openings-trainer:v2`.
-- **`app.js`** — UI controller: board rendering and animation, the drill flow
-  (brief auto-replay of the moves leading to a position, then ask for one
-  response), the tier-grouped home dashboard, free-practice library, and the
-  settings screen.
-- **`pieces/`** — three traditional Staunton SVG piece sets (`cburnett`,
-  `merida`, `maestro`), rendered via `<img>`. `pieces/CREDITS.txt` records their
-  upstream source and licenses (from the lichess project, GPL).
-- Settings (`chess-openings-prefs`): light/dark theme, piece style, and board
-  color, all persisted; the theme is a manual toggle that defaults to light.
-
-This app is a good reference for: a multi-file vanilla app, a sizeable bundled
-asset set in the service worker, namespaced `localStorage`, and a manual,
-opt-in dark mode.
+The most substantial app is `chess` — its `apps/chess/DESIGN.md` is a good reference
+for a multi-file vanilla app, a bundled engine + asset set in the service worker,
+namespaced `localStorage`, and a manual dark-mode toggle.
 
 ---
 

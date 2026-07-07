@@ -433,9 +433,11 @@ function _setupClockDisplay() {
 
 // ── Captured-pieces tray ────────────────────────────────────────────────────
 const _CAP_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9 };
-const _CAP_GLYPH = { p: "♟", n: "♞", b: "♝", r: "♜", q: "♛" };
 const _CAP_START = { p: 8, n: 2, b: 2, r: 2, q: 1 };
 
+// Captured pieces are the opponent's missing pieces, drawn in the opponent's
+// colour using the player's chosen piece style (same assets as the board) so the
+// glyph shape and colour always match what's on the board.
 function _capturedFor(capturerColor) {
     const oppColor = capturerColor === "w" ? "b" : "w";
     const counts = { p: 0, n: 0, b: 0, r: 0, q: 0 };
@@ -446,11 +448,11 @@ function _capturedFor(capturerColor) {
         const t = ch.toLowerCase();
         if (counts[t] != null) counts[t]++;
     }
-    const glyphClass = oppColor === "w" ? "cap-w" : "cap-b";
+    const style = getPrefs().pieces;
     let html = "", value = 0;
     for (const t of ["q", "r", "b", "n", "p"]) {
         const missing = Math.max(0, _CAP_START[t] - counts[t]);
-        for (let i = 0; i < missing; i++) { html += `<span class="${glyphClass}">${_CAP_GLYPH[t]}</span>`; value += _CAP_VALUE[t]; }
+        for (let i = 0; i < missing; i++) { html += Board.samplePiece(style, oppColor, t.toUpperCase()); value += _CAP_VALUE[t]; }
     }
     return { html, value };
 }

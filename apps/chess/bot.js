@@ -113,9 +113,12 @@ class BotEngine {
         if (this._strength.depthCap > 0) {
             goCmd = "go depth " + this._strength.depthCap;
         } else {
-            const mt = remainingMs > 0
-                ? Math.min(Math.floor(remainingMs * 0.05), 3000)
-                : this._strength.movetime;
+            // Base think time on the rating's movetime (already scaled, ≤1500 ms).
+            // When a clock is running, only *cap* it by a slice of the remaining
+            // time so the bot doesn't flag — this keeps blitz fast instead of
+            // burning a flat 3 s/move.
+            let mt = this._strength.movetime;
+            if (remainingMs > 0) mt = Math.min(mt, Math.floor(remainingMs * 0.1));
             goCmd = "go movetime " + Math.max(20, mt);
         }
         return new Promise((resolve, reject) => {
