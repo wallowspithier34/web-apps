@@ -28,9 +28,23 @@ const DEFAULT_PREFS = {
     pieces: "merida",
     board:  "classic",
     variant: "standard",
-    timerPreset: 6,                              // 10+0 → "long" bucket
+    timerPreset: 6,                              // 10+0 → "long" bucket; or "custom"
+    customTime: { seconds: 900, increment: 10 }, // used when timerPreset === "custom"
     difficulty: { mode: "adaptive", skill: 8 },
+    confirmLongGames: false,                     // confirm each move in 15 min+ games
 };
+
+// Resolve the chosen time control (a preset index or "custom") to concrete values.
+function getTimeControl(prefs) {
+    if (prefs.timerPreset === "custom") {
+        const ct  = prefs.customTime || DEFAULT_PREFS.customTime;
+        const sec = Math.max(0, Math.round(ct.seconds) || 0);
+        const inc = Math.max(0, Math.round(ct.increment) || 0);
+        return { seconds: sec, increment: inc, label: `${Math.round(sec / 60)}+${inc}` };
+    }
+    const p = TIMER_PRESETS[prefs.timerPreset] || TIMER_PRESETS[NO_TIMER_IDX];
+    return { seconds: p.seconds, increment: p.increment, label: p.label };
+}
 
 // ── Shared globals ──────────────────────────────────────────────────────────
 let _eloStore, _prefs;
@@ -129,21 +143,34 @@ function _renderConfig() {
     document.querySelectorAll("#cfg-variant .seg-btn").forEach((b) =>
         b.classList.toggle("active", b.dataset.variant === _prefs.variant));
 
-    // Timer segment
+    // Timer segment (presets + a Custom option)
     const timer = document.getElementById("cfg-timer");
     if (!timer.dataset.built) {
         TIMER_PRESETS.forEach((p, i) => {
             const b = document.createElement("button");
             b.className = "seg-btn";
-            b.dataset.timer = i;
+            b.dataset.timer = String(i);
             b.textContent = p.label;
             b.addEventListener("click", () => { _prefs.timerPreset = i; savePrefs(); _renderConfig(); });
             timer.appendChild(b);
         });
+        const cb = document.createElement("button");
+        cb.className = "seg-btn";
+        cb.dataset.timer = "custom";
+        cb.textContent = "Custom";
+        cb.addEventListener("click", () => { _prefs.timerPreset = "custom"; savePrefs(); _renderConfig(); });
+        timer.appendChild(cb);
         timer.dataset.built = "1";
     }
     timer.querySelectorAll(".seg-btn").forEach((b) =>
-        b.classList.toggle("active", +b.dataset.timer === _prefs.timerPreset));
+        b.classList.toggle("active", b.dataset.timer === String(_prefs.timerPreset)));
+
+    // Custom time inputs (only when "Custom" is selected)
+    const customRow = document.getElementById("cfg-custom-row");
+    customRow.hidden = _prefs.timerPreset !== "custom";
+    const ct = _prefs.customTime || DEFAULT_PREFS.customTime;
+    document.getElementById("cfg-custom-min").value = Math.round(ct.seconds / 60);
+    document.getElementById("cfg-custom-inc").value = ct.increment;
 
     // Difficulty segment
     document.querySelectorAll("#cfg-diff .seg-btn").forEach((b) =>
@@ -153,7 +180,7 @@ function _renderConfig() {
     document.getElementById("cfg-skill-val").textContent = _prefs.difficulty.skill;
 
     // Note: which rating this game affects
-    const base = TIMER_PRESETS[_prefs.timerPreset].seconds;
+    const base = getTimeControl(_prefs).seconds;
     const tc   = timeControlTag(base) === "blitz" ? "Blitz" : "Rapid";
     const key  = bucketKey(_prefs.variant, base);
     const vLabel = _prefs.variant === "c960" ? "Chess960" : "Standard";
@@ -170,6 +197,9 @@ function openSettings() {
     document.getElementById("settings-panel").hidden = false;
     document.querySelectorAll("#theme-seg .seg-btn").forEach((b) =>
         b.classList.toggle("active", b.dataset.theme === _prefs.theme));
+    const confirmOn = !!_prefs.confirmLongGames;
+    document.querySelectorAll("#confirm-seg .seg-btn").forEach((b) =>
+        b.classList.toggle("active", (b.dataset.confirm === "on") === confirmOn));
     _renderPieceStyleGrid();
     _renderBoardSwatches();
     _renderRatingsEdit();
@@ -254,6 +284,17 @@ document.addEventListener("DOMContentLoaded", () => {
         _renderConfig();
     });
 
+    // Custom time inputs
+    const readCustom = () => {
+        const min = Math.max(1, Math.min(180, parseInt(document.getElementById("cfg-custom-min").value, 10) || 1));
+        const inc = Math.max(0, Math.min(60, parseInt(document.getElementById("cfg-custom-inc").value, 10) || 0));
+        _prefs.customTime = { seconds: min * 60, increment: inc };
+        savePrefs();
+        _renderConfig();
+    };
+    document.getElementById("cfg-custom-min").addEventListener("change", readCustom);
+    document.getElementById("cfg-custom-inc").addEventListener("change", readCustom);
+
     // Play button — start a fresh game with the chosen settings. If a game is
     // paused, confirm via an in-app modal (not a system dialog) first.
     const startConfiguredGame = () => {
@@ -297,6 +338,14 @@ document.addEventListener("DOMContentLoaded", () => {
             _prefs.theme = b.dataset.theme; savePrefs(); applyTheme();
             document.querySelectorAll("#theme-seg .seg-btn").forEach((x) =>
                 x.classList.toggle("active", x.dataset.theme === _prefs.theme));
+        }));
+
+    // Confirm-moves toggle
+    document.querySelectorAll("#confirm-seg .seg-btn").forEach((b) =>
+        b.addEventListener("click", () => {
+            _prefs.confirmLongGames = b.dataset.confirm === "on"; savePrefs();
+            document.querySelectorAll("#confirm-seg .seg-btn").forEach((x) =>
+                x.classList.toggle("active", (x.dataset.confirm === "on") === !!_prefs.confirmLongGames));
         }));
 
     // Settings: history / export / import / reset
@@ -343,6 +392,7 @@ window.getPrefs      = getPrefs;
 window.savePrefs     = savePrefs;
 window.refreshHome   = refreshHome;
 window.applyBoardTheme = applyBoardTheme;
+window.getTimeControl = getTimeControl;
 window.GAME_KEY      = GAME_KEY;
 window.BOARD_THEMES  = BOARD_THEMES;
 window.PIECE_STYLES  = PIECE_STYLES;

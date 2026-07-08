@@ -19,7 +19,7 @@ function _recordGame(record) {
 // ── Module state ────────────────────────────────────────────────────────────
 let _game, _clock, _bot;
 let _variant, _adaptive, _manualSkill, _bucketKey, _startFen;
-let _playerColor, _style, _timerPreset;
+let _playerColor, _style, _tc;   // _tc = resolved time control { seconds, increment, label }
 let _history   = [];        // UCI move strings
 let _posCounts = {};        // positionKey → count (threefold repetition)
 let _selectedSq = null;
@@ -29,6 +29,15 @@ let _boardEl;
 let _gen        = 0;         // bumped each game; async bot callbacks bail if it changed
 let _preMove    = null;      // queued pre-move { from, to } (played on the player's turn)
 let _preSel     = null;      // pre-move source square being selected
+let _viewPly    = 0;         // review index into _history; === _history.length means live
+let _confirmMoves = false;   // confirm each player move (long games + setting)
+let _pendingMove  = null;    // { from, to, promotion } awaiting confirmation
+
+// Resolve a saved game's legacy timerPreset index to a time-control object.
+function _tcFromLegacy(idx) {
+    const p = TIMER_PRESETS[idx] || TIMER_PRESETS[NO_TIMER_IDX];
+    return { seconds: p.seconds, increment: p.increment, label: p.label };
+}
 
 // ── Init ────────────────────────────────────────────────────────────────────
 function initPlay(config) {
@@ -50,8 +59,9 @@ function initPlay(config) {
         _variant     = config.variant || prefs.variant || "standard";
         _adaptive    = prefs.difficulty.mode === "adaptive";
         _manualSkill = prefs.difficulty.skill;
-        _timerPreset = prefs.timerPreset ?? NO_TIMER_IDX;
-        _bucketKey   = bucketKey(_variant, TIMER_PRESETS[_timerPreset].seconds);
+        _tc          = getTimeControl(prefs);
+        _bucketKey   = bucketKey(_variant, _tc.seconds);
+        _confirmMoves = !!prefs.confirmLongGames && _tc.seconds >= 900;
         _playerColor = Math.random() < 0.5 ? "w" : "b";
         _newGame();
     }
@@ -67,12 +77,19 @@ function _resetControls() {
     const btn = document.getElementById("btn-resign");
     if (btn) { btn.textContent = "Resign"; delete btn.dataset.confirm; }
     _clearPreMove();
+    _clearPending();
 }
 
 function _clearPreMove() {
     _preMove = null;
     _preSel  = null;
     Board.clearPremove();
+}
+
+function _clearPending() {
+    _pendingMove = null;
+    const mc = document.getElementById("move-confirm");
+    if (mc) mc.hidden = true;
 }
 
 function _newGame() {
@@ -91,7 +108,8 @@ function _newGame() {
 
     _setupTimer(getPrefs());
     _setupClockDisplay();
-    _updateMoveList();
+    _viewPly = _history.length;
+    _updateReviewControls("");
     _checkGameOver();
     if (!_gameOver) _initBot();
 }
@@ -108,8 +126,9 @@ function _resumeGame() {
     _manualSkill = saved.manualSkill != null ? saved.manualSkill : getPrefs().difficulty.skill;
     _startFen    = saved.startFen || undefined;
     _playerColor = saved.playerColor || "w";
-    _timerPreset = saved.timerPreset != null ? saved.timerPreset : (getPrefs().timerPreset ?? NO_TIMER_IDX);
-    _bucketKey   = saved.bucketKey || bucketKey(_variant, TIMER_PRESETS[_timerPreset].seconds);
+    _tc          = saved.timeControl || _tcFromLegacy(saved.timerPreset);
+    _bucketKey   = saved.bucketKey || bucketKey(_variant, _tc.seconds);
+    _confirmMoves = !!getPrefs().confirmLongGames && _tc.seconds >= 900;
     _history     = saved.history || [];
     _style       = getPrefs().pieces;
 
@@ -137,7 +156,8 @@ function _resumeGame() {
 
     _setupTimer(getPrefs(), saved.timerState);
     _setupClockDisplay();
-    _updateMoveList();
+    _viewPly = _history.length;
+    _updateReviewControls("");
     _updateCaptured();
     _checkGameOver();
     if (!_gameOver) _initBot(true);
@@ -220,6 +240,8 @@ function _moveToUci(m) {
 // ── Board interaction ───────────────────────────────────────────────────────
 function _onSquareTap(name) {
     if (_gameOver) return;
+    if (_viewPly !== _history.length) return;   // reviewing a past position — read-only
+    if (_pendingMove) return;                    // awaiting move confirmation — locked
     // Opponent to move (bot thinking or about to move): queue/cancel a pre-move.
     if (_game.turn !== _playerColor) { _onPreMoveTap(name); return; }
     // Player to move but busy (own promotion picker open): ignore.
@@ -235,6 +257,7 @@ function _onSquareTap(name) {
         const matching = legal.filter((m) => m.to === toIdx_);
         if (matching.length) {
             if (matching.some((m) => m.promotion)) _showPromoModal(_selectedSq, name, myTurn);
+            else if (_confirmMoves) _armConfirm(_selectedSq, name, null);
             else _executeMove(_selectedSq, name, null);
             return;
         }
@@ -270,6 +293,35 @@ function _onPreMoveTap(name) {
     else       { _clearPreMove(); }                          // tap empty/enemy → clear
 }
 
+// ── Move confirmation (long games) ──────────────────────────────────────────
+function _armConfirm(from, to, promotion) {
+    _selectedSq = null;
+    _pendingMove = { from, to, promotion: promotion || null };
+    Board.clearHighlights();
+    Board.applyLastTint();
+    Board.markConfirm(from, to);
+    // SAN preview from the live position.
+    const g = new Chess(_startFen);
+    for (const u of _history) g.move(Chess.parseUci(u));
+    const m = g.legalMovesFrom(from).find((x) => idxToName(x.to) === to);
+    const san = m ? g.toSAN(m) : "move";
+    document.getElementById("move-confirm-label").textContent = "Play " + san + "?";
+    document.getElementById("move-confirm").hidden = false;
+}
+
+function _commitPending() {
+    if (!_pendingMove) return;
+    const { from, to, promotion } = _pendingMove;
+    _clearPending();
+    _executeMove(from, to, promotion);
+}
+
+function _cancelPending() {
+    _clearPending();
+    Board.clearHighlights();
+    Board.applyLastTint();
+}
+
 function _executeMove(from, to, promotion) {
     _selectedSq = null;
     const uci    = from + to + (promotion ? promotion.toLowerCase() : "");
@@ -287,7 +339,8 @@ function _executeMove(from, to, promotion) {
 
 function _afterMove() {
     _recordPosition();
-    _updateMoveList();
+    _viewPly = _history.length;      // snap the review view back to the live position
+    _updateReviewControls("");
     _updateTurnLabels();
     _updateCaptured();
     _saveGame();
@@ -319,6 +372,7 @@ function _checkGameOver() {
 function _endGame(reason, winner) {
     _gameOver = true;
     _clearPreMove();
+    _clearPending();
     if (_clock) _clock.pause();
     localStorage.removeItem(GAME_KEY);
 
@@ -362,7 +416,7 @@ function _endGame(reason, winner) {
         winner,
         moves: _history.slice(),
         startFen: _startFen || null,
-        timerPreset: _timerPreset,
+        timeControl: _tc,
         eloDelta,
     });
 
@@ -380,8 +434,8 @@ function resignSavedGame() {
     const variant     = saved.variant || "standard";
     const playerColor = saved.playerColor || "w";
     const winner      = playerColor === "w" ? "b" : "w";
-    const preset      = saved.timerPreset != null ? saved.timerPreset : (getPrefs().timerPreset ?? NO_TIMER_IDX);
-    const key         = saved.bucketKey || bucketKey(variant, TIMER_PRESETS[preset].seconds);
+    const tc          = saved.timeControl || _tcFromLegacy(saved.timerPreset);
+    const key         = saved.bucketKey || bucketKey(variant, tc.seconds);
 
     let eloDelta = null;
     if (saved.adaptive) {
@@ -394,7 +448,7 @@ function resignSavedGame() {
         playerColor, result: "resign", winner,
         moves: (saved.history || []).slice(),
         startFen: saved.startFen || null,
-        timerPreset: preset, eloDelta,
+        timeControl: tc, eloDelta,
     });
     localStorage.removeItem(GAME_KEY);
     return true;
@@ -402,14 +456,13 @@ function resignSavedGame() {
 
 // ── Timer ───────────────────────────────────────────────────────────────────
 function _setupTimer(prefs, savedState) {
-    const preset = TIMER_PRESETS[_timerPreset];
-    if (!preset || preset.seconds === 0) {
+    if (!_tc || _tc.seconds === 0) {
         _clock = null;
         document.getElementById("top-time").textContent = "—";
         document.getElementById("bottom-time").textContent = "—";
         return;
     }
-    _clock = new ChessClock(preset.seconds, preset.increment);
+    _clock = new ChessClock(_tc.seconds, _tc.increment);
     if (savedState) {
         _clock._ms.w = savedState.w ?? _clock._ms.w;
         _clock._ms.b = savedState.b ?? _clock._ms.b;
@@ -506,21 +559,51 @@ function _showPromoModal(from, to, color) {
     modal.hidden = false;
 }
 
-// ── Move list ───────────────────────────────────────────────────────────────
-function _updateMoveList() {
-    const el = document.getElementById("move-list");
-    if (!el) return;
-    if (!_history.length) { el.textContent = ""; return; }
+// ── Move review (visual rewind only — never mutates the game) ────────────────
+// Render the board at `_viewPly` moves into the game. When `_viewPly` equals the
+// history length the live position is shown; otherwise the board is read-only.
+function _renderView() {
+    const live = _viewPly >= _history.length;
     const g = new Chess(_startFen);
-    const lines = [];
-    for (let i = 0; i < _history.length; i++) {
-        const r = g.move(Chess.parseUci(_history[i]));
-        if (!r) break;
-        if (i % 2 === 0) lines.push(`${Math.floor(i / 2) + 1}. ${r.san}`);
-        else             lines[lines.length - 1] += ` ${r.san}`;
+    let lastRes = null;
+    for (let i = 0; i < _viewPly; i++) lastRes = g.move(Chess.parseUci(_history[i]));
+    Board.renderPieces(g, _boardEl, _style);
+    Board.clearHighlights();
+    if (_viewPly > 0 && lastRes) {
+        const uci  = _history[_viewPly - 1];
+        const toSq = lastRes.castle && lastRes.kingTo != null ? idxToName(lastRes.kingTo) : uci.slice(2, 4);
+        Board.setLastMove({ from: uci.slice(0, 2), to: toSq });
+        Board.applyLastTint();
+    } else {
+        Board.setLastMove(null);
     }
-    el.textContent = lines.join("\n");
-    el.scrollTop = el.scrollHeight;
+    if (live && _game.inCheck()) {
+        const ki = _game.board.findIndex((p) => p === (_game.turn === "w" ? "K" : "k"));
+        if (ki !== -1) Board.markCheck(idxToName(ki));
+    }
+    _updateReviewControls(lastRes ? lastRes.san : "");
+}
+
+function _updateReviewControls(lastSan) {
+    const total  = _history.length;
+    const live   = _viewPly >= total;
+    const status = document.getElementById("review-status");
+    if (status) {
+        if (live)              { status.textContent = "Live"; status.classList.remove("reviewing"); }
+        else if (_viewPly === 0) { status.textContent = "Start position"; status.classList.add("reviewing"); }
+        else {
+            const num  = Math.floor((_viewPly - 1) / 2) + 1;
+            const dots = (_viewPly % 2 === 1) ? "." : "…";
+            status.textContent = `${num}${dots} ${lastSan}  ·  ${_viewPly}/${total}`;
+            status.classList.add("reviewing");
+        }
+    }
+    const prev = document.getElementById("review-prev");
+    const next = document.getElementById("review-next");
+    const liveBtn = document.getElementById("review-live");
+    if (prev)    prev.disabled = _viewPly <= 0;
+    if (next)    next.disabled = live;
+    if (liveBtn) liveBtn.disabled = live;
 }
 
 // ── Persistence ─────────────────────────────────────────────────────────────
@@ -531,7 +614,7 @@ function _saveGame() {
         localStorage.setItem(GAME_KEY, JSON.stringify({
             variant: _variant, adaptive: _adaptive, manualSkill: _manualSkill,
             bucketKey: _bucketKey, startFen: _startFen || null,
-            playerColor: _playerColor, timerPreset: _timerPreset,
+            playerColor: _playerColor, timeControl: _tc,
             history: _history, timerState,
         }));
     } catch (_) {}
@@ -545,11 +628,30 @@ document.addEventListener("DOMContentLoaded", () => {
         _waiting = false;
         _gen++;                     // invalidate any in-flight bot callback
         _clearPreMove();
+        _clearPending();
         if (_clock) _clock.pause();
         if (_bot) { _bot.quit(); _bot = null; }
         showScreen("screen-home");
         refreshHome();
     });
+
+    // Move review (visual rewind)
+    document.getElementById("review-prev").addEventListener("click", () => {
+        if (_pendingMove || _viewPly <= 0) return;
+        _viewPly--; _selectedSq = null; _renderView();
+    });
+    document.getElementById("review-next").addEventListener("click", () => {
+        if (_pendingMove || _viewPly >= _history.length) return;
+        _viewPly++; _selectedSq = null; _renderView();
+    });
+    document.getElementById("review-live").addEventListener("click", () => {
+        if (_pendingMove || _viewPly >= _history.length) return;
+        _viewPly = _history.length; _selectedSq = null; _renderView();
+    });
+
+    // Move confirmation (long games)
+    document.getElementById("move-confirm-ok").addEventListener("click", _commitPending);
+    document.getElementById("move-confirm-cancel").addEventListener("click", _cancelPending);
 
     document.getElementById("btn-flip").addEventListener("click", () => {
         const orientation = Board.getOrientation() === "w" ? "b" : "w";

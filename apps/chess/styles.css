@@ -26,7 +26,9 @@
     /* Board interaction overlays */
     --sel:       rgba(124,94,60,.9);
     --sel-bg:    rgba(124,94,60,.28);
-    --legal-dot: rgba(60,45,25,.32);
+    --legal-dot: rgba(30,28,24,.5);       /* move dot; paired with a contrasting halo */
+    --legal-dot-edge: rgba(255,255,255,.6);
+    --castle:    #b8791f;                 /* Chess960 castle marker (rook square) */
     --last-bg:   rgba(230,180,60,.30);
     --chk-bg:    rgba(200,45,45,.42);
     --wrong-bg:  rgba(200,45,45,.40);
@@ -64,7 +66,9 @@ body.dark {
 
     --sel:       rgba(200,168,122,.9);
     --sel-bg:    rgba(200,168,122,.26);
-    --legal-dot: rgba(255,245,225,.30);
+    --legal-dot: rgba(245,240,230,.6);
+    --legal-dot-edge: rgba(0,0,0,.5);
+    --castle:    #e0a52e;
     --last-bg:   rgba(200,168,122,.30);
 
     --pw:      #ececdc;
@@ -198,6 +202,16 @@ html, body {
 .config-note { font-size: .76rem; color: var(--text-dim); line-height: 1.35; }
 .btn-play { width: 100%; font-size: 1.05rem; padding: .8rem; }
 
+/* Custom time inputs */
+.custom-time-inputs { display: flex; align-items: center; gap: .5rem; flex: 1; }
+.custom-time-field { display: inline-flex; align-items: center; gap: .3rem; font-size: .8rem; color: var(--text-dim); }
+.custom-time-field input {
+    width: 3.4rem; padding: .4rem .5rem; text-align: right;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text); font-size: .95rem; font-variant-numeric: tabular-nums;
+}
+.custom-time-plus { color: var(--text-faint); font-weight: 700; }
+
 /* ══════════════════════════ Bar (Play/History/Replay) ══════════════════════════ */
 .bar {
     display: flex; align-items: center; justify-content: space-between;
@@ -271,13 +285,30 @@ body.dark .board-wrap { background: #12100e; }
 .sq-wrong { background: var(--wrong-bg) !important; }
 .sq-hint  { background: var(--hint-bg) !important; }
 .sq-premove { background: rgba(220,120,40,.5) !important; outline: 2px solid rgba(200,100,30,.9); outline-offset: -2px; }
+.sq-confirm { background: rgba(220,120,40,.45) !important; outline: 3px solid rgba(200,100,30,.95); outline-offset: -3px; }
+/* Legal move to an empty square: a dot with a contrasting halo so it reads on any
+   square colour and theme. */
 .sq-legal::after {
     content: ''; position: absolute; top:50%; left:50%;
-    transform: translate(-50%,-50%); width: 28%; height: 28%;
+    transform: translate(-50%,-50%); width: 32%; height: 32%;
     background: var(--legal-dot); border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--legal-dot-edge);
     pointer-events: none; z-index: 2;
 }
-.sq-legal-cap { outline: 2px solid var(--sel); outline-offset: -2px; }
+/* Legal capture: a bold two-tone ring around the capturable piece. */
+.sq-legal-cap::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 4px var(--legal-dot), inset 0 0 0 6px var(--legal-dot-edge);
+}
+/* Chess960 castle target (the rook's own square). Distinct from move dots/capture
+   rings so it's clear castling is available and that tapping the rook castles. */
+.sq-castle { outline: 3px solid var(--castle); outline-offset: -3px; }
+.sq-castle::after {
+    content: '\21BB'; position: absolute; top: 1px; right: 2px;
+    font-size: .7rem; font-weight: 700; color: var(--castle);
+    text-shadow: 0 0 2px rgba(0,0,0,.6); pointer-events: none; z-index: 4;
+}
 
 .coord {
     position: absolute; font-size: .56rem; font-weight: 700;
@@ -311,17 +342,38 @@ body.dark .board-wrap { background: #12100e; }
 .piece-captured { opacity: 0; transition: opacity 180ms ease; pointer-events: none; }
 
 /* ── Bottom controls ── */
-/* Grows to fill the height left below the board; the move list (flex child)
-   absorbs the slack so the clock stays hugged to the board and actions sit at the
-   bottom. */
+/* Fills the height left below the board; the review bar + clock hug the board and
+   the actions are pushed to the bottom (margin-top:auto), so the layout never grows
+   as moves accumulate. */
 .play-bottom { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); }
-.move-list {
-    flex: 1 1 auto; min-height: 3.4rem; overflow-y: auto;
-    padding: .4rem .8rem; font-size: .8rem; color: var(--text-dim);
-    white-space: pre-wrap; font-variant-numeric: tabular-nums; line-height: 1.5;
-    border-top: 1px solid var(--border);
+
+/* Move review (visual rewind) */
+.play-review {
+    display: flex; flex-direction: column; align-items: center; gap: .3rem;
+    padding: .5rem .8rem; border-top: 1px solid var(--border);
 }
-.play-actions { display: flex; gap: .5rem; padding: .6rem .8rem; }
+.review-status { font-size: .78rem; color: var(--text-dim); font-variant-numeric: tabular-nums; min-height: 1rem; }
+.review-status.reviewing { color: var(--castle); font-weight: 700; }
+.review-btns { display: flex; gap: .6rem; align-items: center; }
+.btn-review {
+    width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text); font-size: 1.1rem; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; display: inline-flex; align-items: center; justify-content: center;
+}
+.btn-review:active { background: var(--surface2); }
+.btn-review:disabled { opacity: .35; cursor: default; }
+#review-live { color: var(--accent); font-size: 1.25rem; }
+
+/* Move confirmation bar (long games) */
+.move-confirm {
+    display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+    padding: .5rem .8rem; border-top: 1px solid var(--border); background: var(--surface2);
+}
+.move-confirm-label { font-weight: 700; font-size: .95rem; }
+.move-confirm-btns { display: flex; gap: .5rem; }
+.move-confirm-btns .btn { min-width: 3.2rem; font-size: 1.1rem; }
+
+.play-actions { display: flex; gap: .5rem; padding: .6rem .8rem; margin-top: auto; }
 .play-actions .btn { flex: 1; }
 
 /* ── Promotion modal ── */

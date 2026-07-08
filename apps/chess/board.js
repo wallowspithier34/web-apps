@@ -172,8 +172,15 @@ const Board = (() => {
         const sel = _sq(name);
         if (sel) sel.classList.add("sq-sel");
         for (const m of legalMoves) {
-            const t = _sq(idxToName(m.to));
-            if (t) t.classList.add(m.captured ? "sq-legal-cap" : "sq-legal");
+            if (m.castle) {
+                // Castling is triggered by tapping the rook's own square (m.to); mark it
+                // distinctly so it's clear castling is available and not a normal move.
+                const rk = _sq(idxToName(m.to));
+                if (rk) rk.classList.add("sq-castle");
+            } else {
+                const t = _sq(idxToName(m.to));
+                if (t) t.classList.add(m.captured ? "sq-legal-cap" : "sq-legal");
+            }
         }
     }
 
@@ -182,7 +189,7 @@ const Board = (() => {
     function clearHighlights() {
         if (!_container) return;
         _container.querySelectorAll(".square").forEach((s) =>
-            s.classList.remove("sq-sel", "sq-legal", "sq-legal-cap", "sq-last", "sq-check", "sq-wrong", "sq-hint", "sq-premove")
+            s.classList.remove("sq-sel", "sq-legal", "sq-legal-cap", "sq-last", "sq-check", "sq-wrong", "sq-hint", "sq-premove", "sq-castle", "sq-confirm")
         );
     }
 
@@ -196,6 +203,12 @@ const Board = (() => {
     function clearPremove() {
         if (!_container) return;
         _container.querySelectorAll(".sq-premove").forEach((s) => s.classList.remove("sq-premove"));
+    }
+
+    // Highlight a move awaiting confirmation (long-game confirm setting).
+    function markConfirm(from, to) {
+        const f = _sq(from); if (f) f.classList.add("sq-confirm");
+        const t = _sq(to);   if (t) t.classList.add("sq-confirm");
     }
 
     function applyLastTint() {
@@ -269,7 +282,7 @@ const Board = (() => {
         buildBoard, renderPieces, animateMove,
         selectSquare, deselect, clearHighlights, applyLastTint,
         markCheck, markWrong, markHints, flashConfirm, shakeWrong,
-        markPremove, clearPremove,
+        markPremove, clearPremove, markConfirm,
         whenPiecesReady, samplePiece,
         setOrientation, getOrientation,
         getPieceEl, getLastMove, setLastMove, clearPieces,

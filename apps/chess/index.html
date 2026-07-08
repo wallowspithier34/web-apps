@@ -44,6 +44,20 @@
                 <span class="config-label">Time</span>
                 <div class="seg seg-wrap" id="cfg-timer"></div>
             </div>
+            <div class="config-row custom-time-row" id="cfg-custom-row" hidden>
+                <span class="config-label">Custom</span>
+                <div class="custom-time-inputs">
+                    <label class="custom-time-field">
+                        <input type="number" id="cfg-custom-min" min="1" max="180" value="15">
+                        <span>min</span>
+                    </label>
+                    <span class="custom-time-plus">+</span>
+                    <label class="custom-time-field">
+                        <input type="number" id="cfg-custom-inc" min="0" max="60" value="10">
+                        <span>sec/move</span>
+                    </label>
+                </div>
+            </div>
             <div class="config-row">
                 <span class="config-label">Bot</span>
                 <div class="seg" id="cfg-diff">
@@ -85,7 +99,23 @@
                 <span class="captured-tray" id="bottom-captured"></span>
                 <span class="clock-time" id="bottom-time">—</span>
             </div>
-            <div class="move-list" id="move-list"></div>
+            <!-- Move review (visual rewind only — does not change game state) -->
+            <div class="play-review" id="play-review">
+                <div class="review-status" id="review-status">Live</div>
+                <div class="review-btns">
+                    <button class="btn-review" id="review-prev" aria-label="Previous move">◀</button>
+                    <button class="btn-review" id="review-live" aria-label="Back to current position">↻</button>
+                    <button class="btn-review" id="review-next" aria-label="Next move">▶</button>
+                </div>
+            </div>
+            <!-- Move confirmation bar (long games, when enabled) -->
+            <div class="move-confirm" id="move-confirm" hidden>
+                <span class="move-confirm-label" id="move-confirm-label">Play move?</span>
+                <div class="move-confirm-btns">
+                    <button class="btn" id="move-confirm-cancel" aria-label="Cancel">✗</button>
+                    <button class="btn btn-primary" id="move-confirm-ok" aria-label="Confirm">✓</button>
+                </div>
+            </div>
             <div class="play-actions">
                 <button class="btn" id="btn-resign">Resign</button>
             </div>
@@ -166,6 +196,15 @@
             <div class="settings-section">
                 <span class="settings-label">Board</span>
                 <div class="swatch-grid" id="board-swatch-grid"></div>
+            </div>
+
+            <div class="settings-section">
+                <span class="settings-label">Confirm moves</span>
+                <div class="seg" id="confirm-seg">
+                    <button class="seg-btn" data-confirm="off">Off</button>
+                    <button class="seg-btn" data-confirm="on">On</button>
+                </div>
+                <span class="settings-hint">When on, games with 15 minutes or more per side ask you to confirm each move before it's played.</span>
             </div>
 
             <div class="settings-section">

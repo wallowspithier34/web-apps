@@ -69,7 +69,8 @@ toggles the `.active` class (only one active at a time). Overlays
   `#cfg-timer`, `#cfg-diff`, `#cfg-skill-row`/`#cfg-skill`, `#cfg-note`, `#btn-play`).
 - **`#screen-play`** — `.play-top` (`.bar` with `#btn-play-back`, `#play-title`,
   `#btn-flip`; `#top-clock` row; `#bot-status`); `.board-wrap > #play-board`;
-  `.play-bottom` (`#bottom-clock`, `#move-list`, `.play-actions > #btn-resign`).
+  `.play-bottom` (`#bottom-clock`, `#play-review` = `◀ ↻ ▶` + `#review-status`,
+  `#move-confirm` = SAN + ✓/✗ bar, `.play-actions > #btn-resign`).
   Overlays: `#promo-modal`, `#gameover-overlay` (`#go-icon`, `#go-title`, `#go-sub`,
   `#go-elo-delta`, `#go-btn-edit`, `#go-btn-rematch`).
 - **`#screen-history`** — `#btn-history-back`, `#history-list`.
@@ -127,14 +128,28 @@ color-via-CSS piece rendering; the current image sets carry their own colors.
 
 **Layout:** `#app` is a max-520 px centered flex column. `.screen` is
 `min-height:100dvh`. The play screen top bar + top clock hug the board; the
-`.play-bottom` panel is `flex:1` and its `#move-list` child is `flex:1`, so the
-leftover height of a tall portrait viewport (a square board can't fill it) is
-absorbed by the move list — no dead gap around the board. Safe-area insets are
-applied on bars and bottom padding. Tap targets ≥ 44 px.
+`.play-bottom` panel is `flex:1` with the review bar/clock hugging the board and
+`.play-actions { margin-top:auto }` pinning Resign near the bottom, so the fixed-height
+controls never grow as moves accumulate (the leftover height of a tall portrait viewport
+just sits below the actions). Safe-area insets are applied on bars and bottom padding.
+Tap targets ≥ 44 px.
 
 ---
 
 ## 5. Intended operation (behavior)
+
+### 5.0 In-game controls (recent)
+- **Move review (visual rewind).** Below the board, `◀ ↻ ▶` step the *displayed* board
+  backward/forward through the game's move history; `↻` returns to the live position. This is
+  purely visual — it never mutates `_game`, the clock, or the engine. While rewound the board
+  is **read-only** (moves and pre-moves are ignored); any real move snaps back to live. There
+  is no scrolling move list (it previously stretched the layout); the review status line shows
+  "Live" / "Start position" / "N/total — SAN".
+- **Confirm moves (long games).** A Settings toggle (`confirmLongGames`, off by default). When
+  on **and** the game's base time is ≥ 15 min, each player move is armed rather than played
+  immediately: the from/to squares are highlighted and a ✓/✗ bar (`#move-confirm`) shows the
+  move's SAN; ✓ commits, ✗ cancels. Promotion moves commit on piece choice (already
+  deliberate). Bot/pre-moves are unaffected.
 
 ### 5.1 Game types & rating buckets
 - Two game types: **Standard** and **Chess960** (authentic Fischer-random, incl.
@@ -242,7 +257,12 @@ per bucket. This supports charting Elo over time or over the last N games; the
    see `resignSavedGame`).
 
 ### 5.7 Clock behavior
-- Presets in `TIMER_PRESETS`. `None` (0 s) disables the clock (`_clock = null`).
+- Presets in `TIMER_PRESETS`, plus a **Custom** option (base minutes 1–180 + increment
+  0–60 s). The chosen control is resolved by `getTimeControl(prefs)` → `{seconds, increment,
+  label}` (from a numeric `timerPreset` index or, when `timerPreset === "custom"`, from
+  `prefs.customTime`). play.js stores the resolved object as `_tc` and persists it as
+  `timeControl` in the saved game / game records (old records fall back to the legacy
+  `timerPreset` index). `None` (0 s) disables the clock (`_clock = null`).
 - The clock starts only after the first move is made (the very first mover's first
   move is "free"). After each move the mover's remaining time is decremented and the
   increment added, then the opponent's clock starts (`ChessClock.switch`).
@@ -264,9 +284,9 @@ the FEN sent to Stockfish.
 
 ### 5.9 Settings, history, data
 - **Settings** (gear): theme toggle (`body.dark`), piece style (5; default
-  `merida`), board color (6; default `classic`), per-bucket rating display + manual
-  edit, a link to Game History, export/import save, and reset-all-data (double
-  confirm; wipes every `chess`-prefixed key).
+  `merida`), board color (6; default `classic`), **confirm-moves** toggle (§5.0),
+  per-bucket rating display + manual edit, a link to Game History, export/import save,
+  and reset-all-data (double confirm; wipes every `chess`-prefixed key).
 - **History:** newest-first list of finished games; tap to open the **replay** viewer
   (step through the game on a static board with first/prev/next/last controls).
 - **Export/Import:** JSON payload of all `chess-v2:*` keys (see §8) — the backup for
@@ -416,8 +436,10 @@ Wraps `stockfish.js` in a Web Worker. UCI flow:
 Keys: `PREFS_KEY = "chess-v2:prefs"`, `GAME_KEY = "chess-v2:game"`.
 Constants: `BOARD_THEMES` (6, §4), `PIECE_STYLES` (5), `DEFAULT_PREFS =
 { theme:"dark", pieces:"merida", board:"classic", variant:"standard",
-timerPreset:6 /* 10+0 */, difficulty:{mode:"adaptive", skill:8} }`. `RATING_GROUPS`
-(Standard/Chess960 cards) and `RATING_EDIT_ROWS` (the four Settings rating rows).
+timerPreset:6 /* 10+0, or "custom" */, customTime:{seconds:900,increment:10},
+confirmLongGames:false, difficulty:{mode:"adaptive", skill:8} }`. `getTimeControl(prefs)`
+resolves the chosen time control. `RATING_GROUPS` (Standard/Chess960 cards) and
+`RATING_EDIT_ROWS` (the four Settings rating rows).
 
 Prefs: `loadPrefs`/`savePrefs`/`getPrefs`; validates saved piece/board ids.
 Theming: `applyTheme` (`body.dark`), `applyBoardTheme` (`#app[data-board]`).
@@ -433,8 +455,9 @@ banner, gear, theme/piece/board pickers, rating edits, history/export/import/res
 
 Keys/consts: `GAMES_KEY = "chess-v2:games"`, `GAMES_MAX = 500`.
 Module state: `_game, _clock, _bot, _variant, _adaptive, _manualSkill, _bucketKey,
-_startFen, _playerColor, _style, _timerPreset, _history (UCI[]), _posCounts,
-_selectedSq, _waiting, _gameOver, _boardEl, _gen (per-game token), _preMove, _preSel`.
+_startFen, _playerColor, _style, _tc (resolved time control), _history (UCI[]),
+_posCounts, _selectedSq, _waiting, _gameOver, _boardEl, _gen (per-game token),
+_preMove, _preSel, _viewPly (review index), _confirmMoves, _pendingMove`.
 
 - `initPlay({ variant, resume })` — entry point from `home.js`. Fresh game: pick
   bucket + random color, `_newGame()`; or `_resumeGame()`.
@@ -507,9 +530,17 @@ sets (`pixel`, `cburnett`, `merida`, `maestro`; 12 files each). Strategy:
 - **Detection.** `_parseCastling` marks a position `chess960` when the castling field
   uses Shredder file letters, or when the king is off the e-file. Standard games keep
   the classic path (rooks a/h, king e-file, `to` = g/c square) unchanged.
-- **Verification.** Confirmed by JS self-play: this Stockfish build emits king-to-rook
-  castling notation under `UCI_Chess960`, and the engine↔board round-trip is legal
-  across long 960 games (including O-O and O-O-O from unusual files).
+- **Castling input.** The player castles by **tapping the rook** (the castle move's `to`
+  is the rook's own square, which is never a legal normal king move — occupied by your own
+  piece — so it is unambiguous). Tapping the king's g/c destination is *not* treated as a
+  castle: in 960 that square can be one square from the king (e.g. king f1 → g1) and is also
+  a legal normal king move, so it must stay a plain move. When the king is selected,
+  `board.js selectSquare` marks the rook square with a distinct `.sq-castle` ring + `⟳` glyph
+  (not a move dot), so castling is discoverable and clearly separate from a king move.
+- **Verification.** Confirmed by JS self-play + browser: this Stockfish build emits
+  king-to-rook castling notation under `UCI_Chess960`; the engine↔board round-trip is legal
+  across long 960 games (O-O/O-O-O from unusual files); and tapping the rook castles while a
+  one-square king move to the adjacent g/c square remains a separate normal move.
 
 ---
 
@@ -518,9 +549,9 @@ sets (`pixel`, `cburnett`, `merida`, `maestro`; 12 files each). Strategy:
 | Key | Shape |
 |-----|-------|
 | `chess-v2:elo` | `{ "standard-blitz": B, "standard-long": B, "c960-blitz": B, "c960-long": B }`, `B = { elo:Number, gamesPlayed:Number, history:[{ ts:ISO, gameNo:Number, elo:Number, delta:Number, result:0\|0.5\|1 }] }`. Migrated from the old flat `{elo, history}` into `standard-long`. |
-| `chess-v2:prefs` | `{ theme:"light"\|"dark", pieces, board, variant:"standard"\|"c960", timerPreset:Number, difficulty:{ mode:"adaptive"\|"manual", skill:0–20 } }` |
-| `chess-v2:game` | Paused game (deleted on game end): `{ variant, adaptive:Bool, manualSkill, bucketKey, startFen:String\|null, playerColor:"w"\|"b", timerPreset, history:[uci], timerState:{w,b}\|null }` |
-| `chess-v2:games` | Completed games, ≤ 500, newest-last: `[{ date:ISO, variant, bucket, adaptive:Bool, playerColor, result, winner:"w"\|"b"\|null, moves:[uci], startFen:String\|null, timerPreset, eloDelta:Number\|null }]`. `result ∈ {checkmate, stalemate, flag, resign, draw-50, draw-material, draw-threefold}`. |
+| `chess-v2:prefs` | `{ theme:"light"\|"dark", pieces, board, variant:"standard"\|"c960", timerPreset:Number\|"custom", customTime:{seconds,increment}, confirmLongGames:Bool, difficulty:{ mode:"adaptive"\|"manual", skill:0–20 } }` |
+| `chess-v2:game` | Paused game (deleted on game end): `{ variant, adaptive:Bool, manualSkill, bucketKey, startFen:String\|null, playerColor:"w"\|"b", timeControl:{seconds,increment,label}, history:[uci], timerState:{w,b}\|null }` |
+| `chess-v2:games` | Completed games, ≤ 500, newest-last: `[{ date:ISO, variant, bucket, adaptive:Bool, playerColor, result, winner:"w"\|"b"\|null, moves:[uci], startFen:String\|null, timeControl:{seconds,increment,label}, eloDelta:Number\|null }]`. `result ∈ {checkmate, stalemate, flag, resign, draw-50, draw-material, draw-threefold}`. Old records may carry a legacy `timerPreset` index instead of `timeControl`. |
 
 Reset-all-data wipes every key beginning with `chess` (also clears any legacy keys).
 
@@ -589,3 +620,10 @@ draw/checkmate/flag detection; theme toggle + board themes; no console errors, n
   theme + **Merida** pieces; piece styles trimmed to 5 (removed shaded/modern/classic/
   flat + their assets); board themes Coffee/Slate replaced with **Rose**/**Amethyst**;
   removed the superseded standalone `apps/chess-openings/` app (index.json + README).
+- **2026-07-07 — in-game UX batch.** Replaced the growing scroll move-list with a
+  fixed **move-review** rewind control (◀ ↻ ▶, read-only while rewound, purely visual);
+  made legal-move dots + capture rings clearly visible (two-tone halo/ring); added a
+  **confirm-moves** setting for 15 min+ games; added a **Custom** time control (base
+  minutes + increment) via `getTimeControl` + a resolved `timeControl` schema; and made
+  **Chess960 castling** unambiguous — tap the rook (distinct `.sq-castle` ring + `⟳`),
+  while the king's one-square move to g/c stays a normal move.
