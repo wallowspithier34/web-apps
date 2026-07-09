@@ -1,5 +1,5 @@
-const CACHE = "chess-v19";
-const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6", "chess-v7", "chess-v8", "chess-v9", "chess-v10", "chess-v11", "chess-v12", "chess-v13", "chess-v14", "chess-v15", "chess-v16", "chess-v17", "chess-v18"];
+const CACHE = "chess-v20";
+const OLD_CACHES = ["chess-v1", "chess-v2", "chess-v3", "chess-v4", "chess-v5", "chess-v6", "chess-v7", "chess-v8", "chess-v9", "chess-v10", "chess-v11", "chess-v12", "chess-v13", "chess-v14", "chess-v15", "chess-v16", "chess-v17", "chess-v18", "chess-v19"];
 
 const ASSETS = [
     "./",
@@ -17,6 +17,7 @@ const ASSETS = [
     "./home.js",
     "./play.js",
     "./history.js",
+    "./stats.js",
     // Pixel pieces (Lichess pixel set)
     "./pieces/pixel/wK.svg", "./pieces/pixel/wQ.svg", "./pieces/pixel/wR.svg",
     "./pieces/pixel/wB.svg", "./pieces/pixel/wN.svg", "./pieces/pixel/wP.svg",

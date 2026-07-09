@@ -156,13 +156,6 @@ class EloStore {
         return { skill: 0, movetime: 80, multipv: 4, weakness, blunderProb, depthCap };
     }
 
-    // Movetime for a fixed manual Skill Level (no clock running).
-    static movetimeFromSkill(level) {
-        if (level <= 5)  return 200;
-        if (level <= 10) return 500;
-        if (level <= 15) return 1000;
-        return 2000;
-    }
 }
 
 window.EloStore      = EloStore;

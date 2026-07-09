@@ -18,7 +18,7 @@ function _recordGame(record) {
 
 // ── Module state ────────────────────────────────────────────────────────────
 let _game, _clock, _bot;
-let _variant, _adaptive, _manualSkill, _bucketKey, _startFen;
+let _variant, _adaptive, _manualElo, _bucketKey, _startFen;
 let _playerColor, _style, _tc;   // _tc = resolved time control { seconds, increment, label }
 let _history   = [];        // UCI move strings
 let _posCounts = {};        // positionKey → count (threefold repetition)
@@ -58,7 +58,7 @@ function initPlay(config) {
     else {
         _variant     = config.variant || prefs.variant || "standard";
         _adaptive    = prefs.difficulty.mode === "adaptive";
-        _manualSkill = prefs.difficulty.skill;
+        _manualElo   = prefs.difficulty.elo;
         _tc          = getTimeControl(prefs);
         _bucketKey   = bucketKey(_variant, _tc.seconds);
         _confirmMoves = !!prefs.confirmLongGames && _tc.seconds >= 900;
@@ -123,7 +123,10 @@ function _resumeGame() {
 
     _variant     = saved.variant || "standard";
     _adaptive    = !!saved.adaptive;
-    _manualSkill = saved.manualSkill != null ? saved.manualSkill : getPrefs().difficulty.skill;
+    // Legacy saves stored a manual Skill Level (0–20); map it to a target Elo.
+    _manualElo   = saved.manualElo != null ? saved.manualElo
+        : saved.manualSkill != null ? Math.max(100, Math.min(3000, 800 + saved.manualSkill * 100))
+        : getPrefs().difficulty.elo;
     _startFen    = saved.startFen || undefined;
     _playerColor = saved.playerColor || "w";
     _tc          = saved.timeControl || _tcFromLegacy(saved.timerPreset);
@@ -167,7 +170,7 @@ function _resumeGame() {
 function _initBot() {
     const opts = _adaptive
         ? { mode: "adaptive", elo: getEloStore().elo(_bucketKey), variant: _variant }
-        : { mode: "manual", skill: _manualSkill, variant: _variant };
+        : { mode: "manual", elo: _manualElo, variant: _variant };
     _bot = new BotEngine();
 
     const status = document.getElementById("bot-status");
@@ -184,7 +187,7 @@ function _initBot() {
 }
 
 function _botLabel() {
-    return _adaptive ? "Adaptive" : ("Skill " + _manualSkill);
+    return _adaptive ? "Adaptive" : ("Elo " + _manualElo);
 }
 
 function _doBotMove() {
@@ -612,7 +615,7 @@ function _saveGame() {
     const timerState = _clock ? { w: _clock.remaining("w"), b: _clock.remaining("b") } : null;
     try {
         localStorage.setItem(GAME_KEY, JSON.stringify({
-            variant: _variant, adaptive: _adaptive, manualSkill: _manualSkill,
+            variant: _variant, adaptive: _adaptive, manualElo: _manualElo,
             bucketKey: _bucketKey, startFen: _startFen || null,
             playerColor: _playerColor, timeControl: _tc,
             history: _history, timerState,

@@ -24,16 +24,13 @@ class BotEngine {
         this._pv      = [];          // candidate first-moves by MultiPV rank (for weak play)
     }
 
-    // opts: { mode, elo, skill, variant }. Returns a Promise resolved when ready.
+    // opts: { mode, elo, variant }. Returns a Promise resolved when ready.
+    // Both modes use the same rating→strength model; "manual" just fixes the target
+    // Elo instead of tracking the player's rating (rated/unrated is play.js's concern).
     init(opts = {}) {
         this._mode    = opts.mode === "manual" ? "manual" : "adaptive";
         this._variant = opts.variant === "c960" ? "c960" : "standard";
-        if (this._mode === "manual") {
-            const skill = Math.max(0, Math.min(20, opts.skill | 0));
-            this._strength = { skill, movetime: EloStore.movetimeFromSkill(skill), multipv: 1, weakness: 0, blunderProb: 0, depthCap: 0 };
-        } else {
-            this._strength = EloStore.strengthFromRating(opts.elo != null ? opts.elo : 1200);
-        }
+        this._strength = EloStore.strengthFromRating(opts.elo != null ? opts.elo : 1200);
 
         return new Promise((resolve, reject) => {
             this._initRes = resolve;
@@ -80,18 +77,23 @@ class BotEngine {
 
     // Choose the move to actually play from the engine's output, applying the
     // configured weakness. A residual blunder chance (bottom ratings only) plays a
-    // fully random legal move; otherwise sample among the MultiPV candidates,
-    // biased toward weaker ones by `weakness` (0 = always the best move).
+    // fully random legal move. Otherwise `weakness` is the *direct* probability of
+    // deviating from the best move to one of the weaker MultiPV candidates (picked
+    // uniformly). This keeps the deviation rate continuous in rating across MultiPV
+    // band changes — the old rank formula had a dead zone (P(deviate)=0 whenever
+    // weakness ≤ 1/multipv, i.e. the whole 1400–2000 band) and a cliff at 1400.
+    // MultiPV now only controls how weak a deviation can be, not whether one happens.
     _selectMove(best, legalUci) {
         const s = this._strength;
         if (s.blunderProb > 0 && legalUci && legalUci.length && Math.random() < s.blunderProb) {
             return legalUci[Math.floor(Math.random() * legalUci.length)];
         }
         const candidates = this._pv.filter(Boolean);
-        if (!candidates.length) return best;
-        const r = Math.max(0, Math.min(candidates.length - 1,
-            Math.floor(s.weakness * Math.random() * candidates.length)));
-        return candidates[r];
+        if (candidates.length < 2 || Math.random() >= s.weakness) {
+            return candidates[0] || best;
+        }
+        // Deviate: uniform among the weaker candidates (ranks 1..N-1).
+        return candidates[1 + Math.floor(Math.random() * (candidates.length - 1))];
     }
 
     _configure() {

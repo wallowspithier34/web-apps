@@ -50,6 +50,7 @@ globals defined by earlier ones):
 | `home.js` | `showScreen`, `showToast`, `getEloStore`, `getPrefs`, `savePrefs`, `refreshHome`, `applyBoardTheme`, `GAME_KEY`, `BOARD_THEMES`, `PIECE_STYLES` | Prefs, navigation, ratings display, config card, Settings panel, theming. |
 | `play.js` | `initPlay`, `resignSavedGame` | Game controller: move flow, clock, persistence, draw detection, Elo update, pre-moves, game-over flow. |
 | `history.js` | `openHistory`, `openReplay` | Game History list + replay viewer. |
+| `stats.js` | `openStats` | Stats screen: per-bucket Elo chart + W/D/L summary. |
 | `stockfish.js` | (worker) | Vendored engine, spawned via `new Worker("./stockfish.js")`. |
 
 Non-JS: `index.html`, `styles.css`, `manifest.json`, `icon.svg`, `sw.js`,
@@ -64,9 +65,10 @@ toggles the `.active` class (only one active at a time). Overlays
 (`#settings-panel`, `#confirm-modal`, `#promo-modal`, `#gameover-overlay`) are
 `position: fixed` and toggled via the `hidden` attribute.
 
-- **`#screen-home`** — title + `#btn-settings` gear; `#ratings` (two rating cards);
-  `#resume-banner` (paused-game resume); the **config card** (`#cfg-variant`,
-  `#cfg-timer`, `#cfg-diff`, `#cfg-skill-row`/`#cfg-skill`, `#cfg-note`, `#btn-play`).
+- **`#screen-home`** — title + header buttons (`#btn-stats` chart icon, `#btn-settings`
+  gear); `#ratings` (two rating cards); `#resume-banner` (paused-game resume); the
+  **config card** (`#cfg-variant`, `#cfg-timer` + `#cfg-custom-row`, `#cfg-diff`,
+  `#cfg-elo-row`/`#cfg-elo` manual-Elo slider, `#cfg-note`, `#btn-play`).
 - **`#screen-play`** — `.play-top` (`.bar` with `#btn-play-back`, `#play-title`,
   `#btn-flip`; `#top-clock` row; `#bot-status`); `.board-wrap > #play-board`;
   `.play-bottom` (`#bottom-clock`, `#play-review` = `◀ ↻ ▶` + `#review-status`,
@@ -76,6 +78,9 @@ toggles the `.active` class (only one active at a time). Overlays
 - **`#screen-history`** — `#btn-history-back`, `#history-list`.
 - **`#screen-replay`** — `#replay-title`, `#replay-info`, `#replay-board`,
   controls (`#replay-first/prev/next/last`, `#replay-counter`).
+- **`#screen-stats`** — `#stats-bucket-seg` (4 buckets), `#stats-axis-seg`
+  (By game / By date), `#stats-chart-wrap` (`#stats-chart` SVG + `#stats-tooltip`),
+  `#stats-summary` (4 stat tiles).
 - **`#settings-panel`** — theme `#theme-seg`, `#piece-style-grid`,
   `#board-swatch-grid`, `#ratings-edit`, `#st-history`, `#st-export`, `#st-import`
   (+ hidden `#st-import-file`), `#st-reset`.
@@ -179,6 +184,18 @@ itself so the player wins and loses equally.*
 `gamesPlayed < 5 → 80`, `< 15 → 48`, else `32`. A new player therefore reaches their
 true balance point in far fewer games, then settles into small, stable ±16 steps.
 
+**Why the 50/50 property holds (audited 2026-07-09).** Three conditions suffice, all
+met: (1) draws are exactly neutral (`0.5 → delta 0`), so the stationary point is
+`P(win) = P(loss)` **regardless of draw rate**; (2) `E[Δ] = (K/2)(p_w − p_l)` is the
+only zero of the drift, positive below and negative above — mean-reverting; (3) bot
+strength is monotone in rating (§5.3). Provisional K changes convergence speed, not
+the equilibrium. Verified by Monte-Carlo through the real `updateAfterGame` (5,000
+games, true strengths 700–2400, draw shares 0–30%): cumulative `W/(W+L)` lands at
+0.495–0.513 and the rating's long-run mean tracks the modeled true strength within a
+few points. Caveats: the property holds only inside the `[100, 3000]` clamp (a player
+stronger than the elo-3000 bot wins >50% forever), and the rating oscillates ±K/2
+around the balance point — 50/50 is a long-run average, not a per-window guarantee.
+
 ### 5.3 Strength model (`EloStore.strengthFromRating(elo)`)
 Pure function mapping a rating to concrete engine controls
 `{ skill, movetime, multipv, weakness, blunderProb, depthCap }`. Two regimes:
@@ -213,27 +230,43 @@ Representative values:
 1. If `blunderProb > 0` and `Math.random() < blunderProb`, play a **uniformly random
    legal move** (the only path that can go arbitrarily weak — this is how a true
    beginner can still reach 50%).
-2. Otherwise sample among the MultiPV candidates biased by `weakness`:
-   `r = clamp(floor(weakness · rand · N), 0, N−1)`; play candidate `r`
-   (`weakness = 0` always yields the best move). This is more human than pure random.
+2. Otherwise **`weakness` is the direct probability of deviating** from the best
+   move: with probability `weakness`, play a uniformly-random *weaker* MultiPV
+   candidate (ranks 1..N−1); otherwise the best move. `multipv` only controls how
+   weak a deviation can be, never whether one happens, so the deviation rate is
+   continuous in rating across every MultiPV band seam. (The original rank formula
+   `floor(weakness·rand·N)` had `P(deviate) = 0` whenever `weakness ≤ 1/N` — a dead
+   zone spanning the whole 1400–2000 band plus a cliff at 1400; fixed 2026-07-09 and
+   empirically re-verified: measured P(deviate) equals `weakness` at every probe
+   rating, e.g. 0.491@1399 → 0.498@1400 → 0.419@1500 → 0@2000.)
 
 Monotonic strength + a reachable weak floor is what guarantees a balance point exists
 for every player.
 
 ### 5.4 Manual mode
-The player fixes a Skill Level 0–20 (`multipv 1`, `weakness 0`, no blunder — pure
-Stockfish at that skill). **Manual games are unrated** — they never change any bucket.
-(Backlog: change manual to a target-Elo control routed through `strengthFromRating`.)
+The player fixes a **target Elo** (slider 100–3000, step 50); the bot plays through
+the exact same `strengthFromRating` model as adaptive, just pinned to that rating
+instead of tracking the player's. **Manual games are unrated** — they never change any
+bucket. Legacy data migrates transparently: an old prefs `difficulty.skill` (0–20) or
+a saved game's `manualSkill` maps to `elo = clamp(800 + skill·100, 100, 3000)`.
 
-### 5.5 Progression tracking
+### 5.5 Progression tracking & Stats screen
 Every **rated** (adaptive) game appends a history entry to its bucket:
 `{ ts, gameNo, elo, delta, result }` — ISO timestamp, the bucket's cumulative game
 number, the **post-game** rating, the delta, and the score. Capped at ~1000 entries
-per bucket. This supports charting Elo over time or over the last N games; the
-**Stats tab** to visualize it is a future feature (data is stored now, not shown).
+per bucket.
+
+The **Stats screen** (chart icon in the Home header) visualizes this data: a bucket
+selector (Standard/960 × Blitz/Rapid, defaulting to the bucket the current config
+would play in), a **By game / By date** x-axis toggle, an inline-SVG Elo line chart
+(single accent-colored series; recessive grid; endpoint dot; crosshair + tooltip on
+pointer/touch showing `elo · game N` or `elo · date`), and four stat tiles: Current,
+Peak, Games, W–D–L. An empty bucket shows "No rated games yet". By-date mode falls
+back to by-game spacing when fewer than two entries have valid timestamps (legacy
+migrated entries may lack them). Pure visualization — never writes data.
 
 ### 5.6 Game flow
-1. **Home / config card:** choose game type, time control, Adaptive/Manual (+ skill
+1. **Home / config card:** choose game type, time control, Adaptive/Manual (+ target-Elo
    slider when Manual). `#cfg-note` states which rating the game affects, or
    "unrated". Prefs persist immediately on change.
 2. **Play:** on **Play**, player color is randomized (`_playerColor`), the board
@@ -407,8 +440,8 @@ walking deltas backward from the current rating). Bucket shape:
   (`<5→80, <15→48, else 32`); `delta = round(K·(result−0.5))`; clamp `[100,3000]`;
   increment `gamesPlayed`; push `{ts, gameNo, elo, delta, result}` (cap 1000); returns
   `{pre, post, delta}`.
-- `static strengthFromRating(elo)` — see §5.3.
-- `static movetimeFromSkill(level)` — 200/500/1000/2000 ms by skill band (manual mode).
+- `static strengthFromRating(elo)` — see §5.3. Both adaptive and manual bot strength
+  route through this one model.
 
 ### 6.5 `bot.js` — `BotEngine`
 
@@ -416,9 +449,9 @@ Wraps `stockfish.js` in a Web Worker. UCI flow:
 `init → "uci" → (uciok) → _configure → "isready" → (readyok, resolves init)`;
 `getBestMove → "position fen …" + "go …" → (bestmove, resolves)`.
 
-- `init({ mode, elo, skill, variant })` — `mode` `"adaptive"|"manual"`; sets
-  `_strength` from `strengthFromRating(elo)` (adaptive) or a fixed manual skill.
-  Returns a Promise resolved on `readyok`.
+- `init({ mode, elo, variant })` — `mode` `"adaptive"|"manual"`; both set `_strength`
+  from `strengthFromRating(elo)` (manual just pins the target Elo; rated/unrated is
+  play.js's concern). Returns a Promise resolved on `readyok`.
 - `_configure()` — `Threads 1`, `Hash 16`, `Skill Level`, `MultiPV`, and
   `UCI_Chess960 true` for 960.
 - `getBestMove(fen, remainingMs = 0, legalUci = null)` — resets `_pv`, queues the
@@ -427,8 +460,9 @@ Wraps `stockfish.js` in a Web Worker. UCI flow:
   `10% of remaining` when a clock is running (floor 20 ms).
 - `_onMsg(line)` — parses `info … multipv K … pv <move>` lines into `_pv[K-1]`; on
   `bestmove` treats `(none)` as null and resolves via `_selectMove`.
-- `_selectMove(best, legalUci)` — blunder (random legal) with `blunderProb`, else
-  MultiPV weighted pick by `weakness` (§5.3), fallback `best`.
+- `_selectMove(best, legalUci)` — blunder (random legal) with `blunderProb`; else
+  deviate to a uniformly-random weaker MultiPV candidate with probability `weakness`,
+  otherwise best (§5.3); fallback `best` when no PV was captured.
 - Getters `skillLevel`, `blunderProb`, `weakness`; `quit()` terminates the worker.
 
 ### 6.6 `home.js`
@@ -437,9 +471,12 @@ Keys: `PREFS_KEY = "chess-v2:prefs"`, `GAME_KEY = "chess-v2:game"`.
 Constants: `BOARD_THEMES` (6, §4), `PIECE_STYLES` (5), `DEFAULT_PREFS =
 { theme:"dark", pieces:"merida", board:"classic", variant:"standard",
 timerPreset:6 /* 10+0, or "custom" */, customTime:{seconds:900,increment:10},
-confirmLongGames:false, difficulty:{mode:"adaptive", skill:8} }`. `getTimeControl(prefs)`
-resolves the chosen time control. `RATING_GROUPS` (Standard/Chess960 cards) and
-`RATING_EDIT_ROWS` (the four Settings rating rows).
+confirmLongGames:false, difficulty:{mode:"adaptive", elo:1200} }`. `getTimeControl(prefs)`
+resolves the chosen time control. `loadPrefs` migrates a legacy `difficulty.skill`
+(0–20) to `elo = clamp(800 + skill·100, 100, 3000)`. `applyTheme()` toggles
+`body.dark` **and** updates the `theme-color` meta (`#1a1a1a`/`#f5f0d0`).
+`RATING_GROUPS` (Standard/Chess960 cards) and `RATING_EDIT_ROWS` (the four Settings
+rating rows).
 
 Prefs: `loadPrefs`/`savePrefs`/`getPrefs`; validates saved piece/board ids.
 Theming: `applyTheme` (`body.dark`), `applyBoardTheme` (`#app[data-board]`).
@@ -454,10 +491,11 @@ banner, gear, theme/piece/board pickers, rating edits, history/export/import/res
 ### 6.7 `play.js` — game controller
 
 Keys/consts: `GAMES_KEY = "chess-v2:games"`, `GAMES_MAX = 500`.
-Module state: `_game, _clock, _bot, _variant, _adaptive, _manualSkill, _bucketKey,
+Module state: `_game, _clock, _bot, _variant, _adaptive, _manualElo, _bucketKey,
 _startFen, _playerColor, _style, _tc (resolved time control), _history (UCI[]),
 _posCounts, _selectedSq, _waiting, _gameOver, _boardEl, _gen (per-game token),
-_preMove, _preSel, _viewPly (review index), _confirmMoves, _pendingMove`.
+_preMove, _preSel, _viewPly (review index), _confirmMoves, _pendingMove`. Resume maps
+a legacy save's `manualSkill` to `manualElo` (`800 + skill·100`).
 
 - `initPlay({ variant, resume })` — entry point from `home.js`. Fresh game: pick
   bucket + random color, `_newGame()`; or `_resumeGame()`.
@@ -466,7 +504,7 @@ _preMove, _preSel, _viewPly (review index), _confirmMoves, _pendingMove`.
   build/​render board, set up clock, init bot. Resume replays saved UCI history,
   rebuilds `_posCounts`, and restores the last-move highlight (king destination for
   960 castles).
-- `_initBot()` — constructs `BotEngine`, `init` with adaptive elo or manual skill;
+- `_initBot()` — constructs `BotEngine`, `init` with the adaptive bucket elo or the fixed manual elo;
   on ready, if it's the bot's turn, `_doBotMove()`.
 - `_doBotMove()` — captures `_gen`; requests a move with the current legal UCI list;
   on resolve (bailing if `_gen` changed) animates, records, switches clock,
@@ -502,19 +540,30 @@ rebuilds the position from `startFen` + the first `_rpIndex` moves and tints the
 move (king destination for 960 castles); `_replayGoto(i)` clamps to
 `[0, moves.length]`.
 
-### 6.9 `export.js`
+### 6.9 `stats.js`
+
+Stats screen (§5.5). `openStats()` (Home header button) defaults the bucket to the
+current config's, renders controls + chart, shows the screen. `STAT_BUCKETS` (4),
+module state `_stBucket`/`_stAxis`/`_stPoints`. `_renderStats()` builds the summary
+tiles and an inline SVG (viewBox 520×240, `PAD` margins): y-scale from the bucket's
+elo range via `_niceStep` (25→800 stepping, 3–6 gridlines), x by index ("games") or
+timestamp ("time", falling back to index when <2 valid `ts`); polyline + endpoint
+dot; first/middle/last x labels. `_wireHover` adds the crosshair + nearest-point
+tooltip (pointer events). Reads via `getEloStore()` only — never writes.
+
+### 6.10 `export.js`
 
 `downloadSave()` — writes `{ app:"chess", version:2, exported, data:{…all chess-v2:*} }`
 as `chess-save-<date>.json`. `importSaveFromText(text)` — parses the JSON (or a
 legacy Markdown ```json block), unwraps `{data}`, confirms, restores every
 `chess`-prefixed key, and reloads.
 
-### 6.10 `sw.js` — service worker
+### 6.11 `sw.js` — service worker
 
-`CACHE = "chess-v17"` (bump on any cached-file change; older names in `OLD_CACHES`
+`CACHE = "chess-v20"` (bump on any cached-file change; older names in `OLD_CACHES`
 are deleted on activate). `ASSETS` precaches: `./`, `index.html`, `styles.css`,
-`manifest.json`, `icon.svg`, all JS modules, `stockfish.js`, and the four SVG piece
-sets (`pixel`, `cburnett`, `merida`, `maestro`; 12 files each). Strategy:
+`manifest.json`, `icon.svg`, all JS modules (incl. `stats.js`), `stockfish.js`, and
+the four SVG piece sets (`pixel`, `cburnett`, `merida`, `maestro`; 12 files each). Strategy:
 **cache-first** for same-origin GETs, caching network responses on miss. The
 `letters` piece style needs no assets (rendered inline).
 
@@ -549,8 +598,8 @@ sets (`pixel`, `cburnett`, `merida`, `maestro`; 12 files each). Strategy:
 | Key | Shape |
 |-----|-------|
 | `chess-v2:elo` | `{ "standard-blitz": B, "standard-long": B, "c960-blitz": B, "c960-long": B }`, `B = { elo:Number, gamesPlayed:Number, history:[{ ts:ISO, gameNo:Number, elo:Number, delta:Number, result:0\|0.5\|1 }] }`. Migrated from the old flat `{elo, history}` into `standard-long`. |
-| `chess-v2:prefs` | `{ theme:"light"\|"dark", pieces, board, variant:"standard"\|"c960", timerPreset:Number\|"custom", customTime:{seconds,increment}, confirmLongGames:Bool, difficulty:{ mode:"adaptive"\|"manual", skill:0–20 } }` |
-| `chess-v2:game` | Paused game (deleted on game end): `{ variant, adaptive:Bool, manualSkill, bucketKey, startFen:String\|null, playerColor:"w"\|"b", timeControl:{seconds,increment,label}, history:[uci], timerState:{w,b}\|null }` |
+| `chess-v2:prefs` | `{ theme:"light"\|"dark", pieces, board, variant:"standard"\|"c960", timerPreset:Number\|"custom", customTime:{seconds,increment}, confirmLongGames:Bool, difficulty:{ mode:"adaptive"\|"manual", elo:100–3000 } }` (legacy `difficulty.skill` migrated on load) |
+| `chess-v2:game` | Paused game (deleted on game end): `{ variant, adaptive:Bool, manualElo, bucketKey, startFen:String\|null, playerColor:"w"\|"b", timeControl:{seconds,increment,label}, history:[uci], timerState:{w,b}\|null }` (legacy `manualSkill` mapped on resume) |
 | `chess-v2:games` | Completed games, ≤ 500, newest-last: `[{ date:ISO, variant, bucket, adaptive:Bool, playerColor, result, winner:"w"\|"b"\|null, moves:[uci], startFen:String\|null, timeControl:{seconds,increment,label}, eloDelta:Number\|null }]`. `result ∈ {checkmate, stalemate, flag, resign, draw-50, draw-material, draw-threefold}`. Old records may carry a legacy `timerPreset` index instead of `timeControl`. |
 
 Reset-all-data wipes every key beginning with `chess` (also clears any legacy keys).
@@ -588,51 +637,8 @@ draw/checkmate/flag detection; theme toggle + board themes; no console errors, n
 
 ## 11. Backlog (future)
 
-1. **Stats tab** — visualize per-bucket progression history: Elo over time (e.g. last
-   year) and over the last N games, plus win/loss/draw breakdowns. Data already
-   recorded in `chess-v2:elo` bucket histories.
-2. **Manual difficulty → Elo** — manual mode currently sets the Stockfish Skill Level
-   (0–20) directly; change it to a target-**Elo** control routed through
-   `strengthFromRating` (fixed strength, still unrated) so it lines up with the
-   adaptive rating scale.
-
-## Known issues (not yet fixed)
-
-- **Beige (light-theme) strip at the bottom ~10% of the screen on iPhone 16, even in
-  dark mode.** Reported on-device 2026-07-09; not yet reproduced/fixed. Note: prior
-  browser-preview verification in this project used a 375×812 mobile viewport, which
-  is **not** iPhone 16 dimensions (393×852 pt) — that mismatch is itself a likely
-  reason this wasn't caught earlier, and any future repro/fix should verify at the
-  correct 393×852 size (`CLAUDE.md` now specifies iPhone 16 as the assumed device).
-  Two confirmed code facts likely contribute:
-  1. `<meta name="theme-color" content="#1a1a1a">` (`index.html:9`) and
-     `manifest.json`'s `background_color`/`theme_color` are **static** — `applyTheme()`
-     (`home.js:80`) only toggles the `body.dark` class and never updates the meta tag,
-     so the OS-drawn chrome color (status bar / home-indicator safe area, and the PWA
-     launch/splash background) can't track the in-app light/dark toggle. Before the
-     2026-07-07 dark-default change (`manifest.json`, this session's earlier commits),
-     both values were literally the light beige `#f5f0d0` — if a device installed the
-     app (Add to Home Screen) before that change, iOS is known to cache PWA manifest
-     metadata (icon/splash/background color) fairly stickily and may not re-fetch it on
-     a normal reload or even a service-worker cache bump, only on reinstall. That stale
-     cached beige is the leading suspect for a device showing beige specifically at the
-     bottom safe-area strip while the in-page content is otherwise dark.
-  2. Separately, `html, body` use `height:100%`/`background: var(--bg)`
-     (`styles.css:92`) and `#app` uses `min-height:100%` (`styles.css:101-104`), while
-     `.screen` uses `min-height:100dvh` (`styles.css:111`). Mixing a `%`-based height
-     chain with `dvh` is a known source of a gap at the bottom of the viewport on iOS
-     Safari when the dynamic toolbar collapses/expands (the `%` chain resolves against
-     a different viewport metric than `dvh`), though on its own this would only expose
-     `body`'s own (theme-correct) background, not a hardcoded beige — so it's more
-     likely a contributing/compounding factor than the sole cause.
-  - **To fix later:** make `home.js applyTheme()` also update the `theme-color` meta
-    tag at runtime (note `manifest.json` itself is static and not live-updatable, so
-    the PWA splash/background color will only ever reflect the *default* theme unless
-    the manifest is regenerated per-theme, which isn't practical for a single static
-    manifest); reproduce on-device with a fresh reinstall (remove from Home Screen,
-    clear Safari data, re-add) to rule out stale cached manifest metadata; check for a
-    `dvh`/`%` height mismatch by testing with Safari's toolbar both expanded and
-    collapsed.
+*Empty — all previously logged items and known issues are implemented/resolved
+(see §12). New items go here.*
 
 ---
 
@@ -665,3 +671,18 @@ draw/checkmate/flag detection; theme toggle + board themes; no console errors, n
   minutes + increment) via `getTimeControl` + a resolved `timeControl` schema; and made
   **Chess960 castling** unambiguous — tap the rook (distinct `.sq-castle` ring + `⟳`),
   while the king's one-square move to g/c stays a normal move.
+- **2026-07-09 — audits, final backlog, iPhone-16 fix.** (1) **iPhone 16 beige strip
+  resolved** — true root cause: `html, body { background: var(--bg) }` resolved `--bg`
+  for `html` from `:root` (the *light* palette; `body.dark` can't restyle `html`), so
+  the document canvas was always beige and showed through viewport gaps/overscroll.
+  Fixed by putting the background on `body` only (it propagates to the canvas), plus
+  `applyTheme()` now updates the `theme-color` meta per theme. Verified at 393×852.
+  (2) **Audit: rating-update math** — 50/50 W/L (draws excluded) property confirmed
+  structurally and by Monte-Carlo through the real `updateAfterGame` (§5.2).
+  (3) **Audit: Elo→Stockfish mapping** — found and fixed a weakness-sampling dead
+  zone (whole 1400–2000 band played pure best-move, cliff at 1400); `weakness` is now
+  the direct deviation probability (§5.3), empirically re-verified. (4) **Manual
+  difficulty → Elo** — manual mode is a fixed target-Elo (100–3000) through
+  `strengthFromRating`, still unrated; legacy skill prefs/saves migrate. (5) **Stats
+  screen** — per-bucket Elo chart (by game / by date), crosshair + tooltip, W–D–L /
+  peak / current tiles (§5.5, `stats.js`). SW cache → `chess-v20`.

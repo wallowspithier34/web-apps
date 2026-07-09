@@ -30,7 +30,7 @@ const DEFAULT_PREFS = {
     variant: "standard",
     timerPreset: 6,                              // 10+0 → "long" bucket; or "custom"
     customTime: { seconds: 900, increment: 10 }, // used when timerPreset === "custom"
-    difficulty: { mode: "adaptive", skill: 8 },
+    difficulty: { mode: "adaptive", elo: 1200 }, // manual mode plays at a fixed target Elo
     confirmLongGames: false,                     // confirm each move in 15 min+ games
 };
 
@@ -63,6 +63,11 @@ function loadPrefs() {
             const p = JSON.parse(raw);
             _prefs = Object.assign({}, DEFAULT_PREFS, p);
             _prefs.difficulty = Object.assign({}, DEFAULT_PREFS.difficulty, p.difficulty);
+            // Migrate the old manual Skill Level (0–20) to a target Elo.
+            if (p.difficulty && p.difficulty.elo == null && p.difficulty.skill != null) {
+                _prefs.difficulty.elo = Math.max(100, Math.min(3000, 800 + p.difficulty.skill * 100));
+            }
+            delete _prefs.difficulty.skill;
         }
     } catch (_) { /* keep defaults */ }
     if (!PIECE_STYLES.find((s) => s.id === _prefs.pieces)) _prefs.pieces = DEFAULT_PREFS.pieces;
@@ -78,7 +83,12 @@ function showScreen(id) {
 }
 
 function applyTheme() {
-    document.body.classList.toggle("dark", _prefs.theme === "dark");
+    const dark = _prefs.theme === "dark";
+    document.body.classList.toggle("dark", dark);
+    // Keep the OS-drawn chrome (status bar / home-indicator area) in sync with the
+    // in-app theme; the static manifest colours only cover the default theme.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = dark ? "#1a1a1a" : "#f5f0d0";
 }
 function applyBoardTheme() {
     document.getElementById("app").dataset.board = _prefs.board;
@@ -175,9 +185,9 @@ function _renderConfig() {
     // Difficulty segment
     document.querySelectorAll("#cfg-diff .seg-btn").forEach((b) =>
         b.classList.toggle("active", b.dataset.diff === _prefs.difficulty.mode));
-    document.getElementById("cfg-skill-row").hidden = _prefs.difficulty.mode !== "manual";
-    document.getElementById("cfg-skill").value = _prefs.difficulty.skill;
-    document.getElementById("cfg-skill-val").textContent = _prefs.difficulty.skill;
+    document.getElementById("cfg-elo-row").hidden = _prefs.difficulty.mode !== "manual";
+    document.getElementById("cfg-elo").value = _prefs.difficulty.elo;
+    document.getElementById("cfg-elo-val").textContent = _prefs.difficulty.elo;
 
     // Note: which rating this game affects
     const base = getTimeControl(_prefs).seconds;
@@ -188,7 +198,7 @@ function _renderConfig() {
     if (_prefs.difficulty.mode === "adaptive") {
         note.textContent = `Rated · ${vLabel} ${tc} (${_eloStore.elo(key)}). The bot tunes itself to your rating.`;
     } else {
-        note.textContent = `Manual Skill ${_prefs.difficulty.skill} · unrated (rating unchanged).`;
+        note.textContent = `Manual · Elo ${_prefs.difficulty.elo} · unrated (rating unchanged).`;
     }
 }
 
@@ -277,9 +287,9 @@ document.addEventListener("DOMContentLoaded", () => {
         b.addEventListener("click", () => { _prefs.variant = b.dataset.variant; savePrefs(); _renderConfig(); }));
     document.querySelectorAll("#cfg-diff .seg-btn").forEach((b) =>
         b.addEventListener("click", () => { _prefs.difficulty.mode = b.dataset.diff; savePrefs(); _renderConfig(); }));
-    document.getElementById("cfg-skill").addEventListener("input", (e) => {
-        _prefs.difficulty.skill = parseInt(e.target.value, 10);
-        document.getElementById("cfg-skill-val").textContent = _prefs.difficulty.skill;
+    document.getElementById("cfg-elo").addEventListener("input", (e) => {
+        _prefs.difficulty.elo = parseInt(e.target.value, 10);
+        document.getElementById("cfg-elo-val").textContent = _prefs.difficulty.elo;
         savePrefs();
         _renderConfig();
     });

@@ -19,7 +19,15 @@
     <div id="screen-home" class="screen active">
         <div class="home-header">
             <div class="home-title">Chess</div>
-            <button class="btn-icon" id="btn-settings" aria-label="Settings">⚙</button>
+            <div class="home-header-btns">
+                <button class="btn-icon" id="btn-stats" aria-label="Stats">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3,17 9,11 13,14 21,6"/>
+                        <polyline points="15,6 21,6 21,12"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="btn-settings" aria-label="Settings">⚙</button>
+            </div>
         </div>
 
         <div class="ratings" id="ratings"></div>
@@ -65,10 +73,10 @@
                     <button class="seg-btn" data-diff="manual">Manual</button>
                 </div>
             </div>
-            <div class="config-row skill-row" id="cfg-skill-row" hidden>
-                <span class="config-label">Skill</span>
-                <input type="range" id="cfg-skill" min="0" max="20" value="8">
-                <span class="skill-val" id="cfg-skill-val">8</span>
+            <div class="config-row skill-row" id="cfg-elo-row" hidden>
+                <span class="config-label">Elo</span>
+                <input type="range" id="cfg-elo" min="100" max="3000" step="50" value="1200">
+                <span class="skill-val" id="cfg-elo-val">1200</span>
             </div>
             <p class="config-note" id="cfg-note"></p>
             <button class="btn btn-primary btn-play" id="btn-play">Play</button>
@@ -172,6 +180,27 @@
         </div>
     </div>
 
+    <!-- ══════════════════ Stats ══════════════════ -->
+    <div id="screen-stats" class="screen">
+        <div class="bar">
+            <button class="btn-icon" id="btn-stats-back" aria-label="Back">←</button>
+            <span class="bar-title">Stats</span>
+            <span class="btn-icon bar-spacer" aria-hidden="true"></span>
+        </div>
+        <div class="stats-body">
+            <div class="seg seg-wrap" id="stats-bucket-seg"></div>
+            <div class="seg" id="stats-axis-seg">
+                <button class="seg-btn" data-axis="games">By game</button>
+                <button class="seg-btn" data-axis="time">By date</button>
+            </div>
+            <div class="stats-chart-wrap" id="stats-chart-wrap">
+                <div class="stats-chart" id="stats-chart"></div>
+                <div class="stats-tooltip" id="stats-tooltip" hidden></div>
+            </div>
+            <div class="stats-summary" id="stats-summary"></div>
+        </div>
+    </div>
+
     <!-- ══════════════════ Settings Panel ══════════════════ -->
     <div id="settings-panel" hidden>
         <div class="settings-bar">
@@ -256,6 +285,7 @@
 <script src="./home.js"></script>
 <script src="./play.js"></script>
 <script src="./history.js"></script>
+<script src="./stats.js"></script>
 <script>
     if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("./sw.js");
