@@ -2,7 +2,7 @@
 
 ## Design
 - Mobile-first — design for phone screen first; never require an off-screen keyboard
-- iPhone/iOS Safari is the primary target device
+- iPhone 16 running iOS Safari is the primary target device — assume its screen size/safe-area insets when reasoning about layout
 - Themes are fixed — never use `prefers-color-scheme`; each app renders a single fixed theme regardless of the system setting (the theme itself is the app's choice)
 - Account for iOS safe-area insets (`env(safe-area-inset-*)`) on full-screen chrome so controls clear the status bar and home indicator
 

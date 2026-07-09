@@ -596,6 +596,44 @@ draw/checkmate/flag detection; theme toggle + board themes; no console errors, n
    `strengthFromRating` (fixed strength, still unrated) so it lines up with the
    adaptive rating scale.
 
+## Known issues (not yet fixed)
+
+- **Beige (light-theme) strip at the bottom ~10% of the screen on iPhone 16, even in
+  dark mode.** Reported on-device 2026-07-09; not yet reproduced/fixed. Note: prior
+  browser-preview verification in this project used a 375×812 mobile viewport, which
+  is **not** iPhone 16 dimensions (393×852 pt) — that mismatch is itself a likely
+  reason this wasn't caught earlier, and any future repro/fix should verify at the
+  correct 393×852 size (`CLAUDE.md` now specifies iPhone 16 as the assumed device).
+  Two confirmed code facts likely contribute:
+  1. `<meta name="theme-color" content="#1a1a1a">` (`index.html:9`) and
+     `manifest.json`'s `background_color`/`theme_color` are **static** — `applyTheme()`
+     (`home.js:80`) only toggles the `body.dark` class and never updates the meta tag,
+     so the OS-drawn chrome color (status bar / home-indicator safe area, and the PWA
+     launch/splash background) can't track the in-app light/dark toggle. Before the
+     2026-07-07 dark-default change (`manifest.json`, this session's earlier commits),
+     both values were literally the light beige `#f5f0d0` — if a device installed the
+     app (Add to Home Screen) before that change, iOS is known to cache PWA manifest
+     metadata (icon/splash/background color) fairly stickily and may not re-fetch it on
+     a normal reload or even a service-worker cache bump, only on reinstall. That stale
+     cached beige is the leading suspect for a device showing beige specifically at the
+     bottom safe-area strip while the in-page content is otherwise dark.
+  2. Separately, `html, body` use `height:100%`/`background: var(--bg)`
+     (`styles.css:92`) and `#app` uses `min-height:100%` (`styles.css:101-104`), while
+     `.screen` uses `min-height:100dvh` (`styles.css:111`). Mixing a `%`-based height
+     chain with `dvh` is a known source of a gap at the bottom of the viewport on iOS
+     Safari when the dynamic toolbar collapses/expands (the `%` chain resolves against
+     a different viewport metric than `dvh`), though on its own this would only expose
+     `body`'s own (theme-correct) background, not a hardcoded beige — so it's more
+     likely a contributing/compounding factor than the sole cause.
+  - **To fix later:** make `home.js applyTheme()` also update the `theme-color` meta
+    tag at runtime (note `manifest.json` itself is static and not live-updatable, so
+    the PWA splash/background color will only ever reflect the *default* theme unless
+    the manifest is regenerated per-theme, which isn't practical for a single static
+    manifest); reproduce on-device with a fresh reinstall (remove from Home Screen,
+    clear Safari data, re-add) to rule out stale cached manifest metadata; check for a
+    `dvh`/`%` height mismatch by testing with Safari's toolbar both expanded and
+    collapsed.
+
 ---
 
 ## 12. Resolved / changelog
